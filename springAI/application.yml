@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartsearch
+    username: smartsearch
+    password: password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          timezone: UTC
+
+  flyway:
+    enabled: false	  	
+  ai:
+   openai:
+     api-key: ${OPENAI_API_KEY}
+     chat:
+       options:
+         model: gpt-4.1-mini
+     embedding:
+        options:
+          model: text-embedding-3-small
+  smartsearch:
+    embedding:
+      dims: 1536
+     
+
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration
+
+server:
+  address: 0.0.0.0
