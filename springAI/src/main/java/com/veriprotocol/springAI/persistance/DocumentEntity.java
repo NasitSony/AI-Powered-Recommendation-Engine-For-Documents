@@ -21,7 +21,7 @@ public class DocumentEntity {
 	private Instant createdAt;
 	
 	// Store vector as String in JPA (we’ll query via JdbcTemplate for similarity)
-    @Column(name = "embedding", nullable = false, columnDefinition = "vector(1536)")
+    @Column(name = "embedding", nullable = false, columnDefinition = "TEXT")
     private String embedding; // pgvector literal like '[0.1,0.2,...]'
 
     protected DocumentEntity() {}
