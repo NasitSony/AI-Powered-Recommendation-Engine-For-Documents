@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.veriprotocol.springAI.core.DocumentService;
 import com.veriprotocol.springAI.core.EmbeddingService;
 import com.veriprotocol.springAI.core.InMemoryDocumentIndex;
+import com.veriprotocol.springAI.core.RagService;
 import com.veriprotocol.springAI.persistance.ChunkSearchDao;
 import com.veriprotocol.springAI.persistance.DocumentEntity;
 import com.veriprotocol.springAI.persistance.DocumentRepository;
@@ -33,9 +34,11 @@ public class DocumentSearchController {
 
 	
     private final DocumentService documentService;
+    private final RagService ragService;
 
-    public DocumentSearchController(DocumentService documentService) {
+    public DocumentSearchController(DocumentService documentService, RagService ragService) {
         this.documentService = documentService;   
+        this.ragService = ragService;
     }
 
     public record UpsertDocumentRequest(String id, @NotBlank String text) {}
@@ -64,6 +67,14 @@ public class DocumentSearchController {
     public List<ChunkSearchDao.ChunkHit> search(@RequestParam(name = "q") String q,
                                                 @RequestParam(name = "k", defaultValue = "3") int k) {
         return documentService.semanticSearchChunks(q, k);
+    }
+    
+    @GetMapping("/ask")
+    public RagService.AskResponse ask(
+            @RequestParam(name = "q") String q,
+            @RequestParam(name = "k", defaultValue = "5") int k
+    ) {
+        return ragService.ask(q, k);
     }
       
 }
