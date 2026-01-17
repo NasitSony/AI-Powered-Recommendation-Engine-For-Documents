@@ -48,7 +48,7 @@ export OPENAI_API_KEY="YOUR_KEY"
 ```bash
 ./mvnw spring-boot:run
 
-### ▶️ Full Demo Flow 
+### ▶️ Full Demo Flow (Copy–Paste)
 
 ```bash
 # -----------------------------
@@ -73,39 +73,3 @@ curl -s -X POST "http://localhost:8080/api/documents" \
 # -----------------------------
 
 curl -s "http://localhost:8080/api/search?q=asynchronous%20byzantine%20consensus&k=3"
-```
-
-### Example Response
-
-```json
-{
-  "query": "asynchronous byzantine consensus",
-  "k": 3,
-  "results": [
-    {
-      "id": "doc-1",
-      "score": 0.87,
-      "snippet": "Asynchronous Byzantine agreement and MVBA protocols..."
-    },
-    {
-      "id": "doc-3",
-      "score": 0.29,
-      "snippet": "Kafka-based event streaming and exactly-once semantics..."
-    },
-    {
-      "id": "doc-2",
-      "score": 0.11,
-      "snippet": "Spring Boot microservices and PostgreSQL performance tuning..."
-    }
-  ]
-}
-```
-
-**What this demonstrates:**
-
-1. Documents are ingested and embedded using Spring AI
-2. Embeddings are stored in the vector index (pgvector or in-memory)
-3. Query is embedded and matched using cosine similarity
-4. Results are returned in ranked order by semantic relevance
-
-
