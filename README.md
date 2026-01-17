@@ -73,3 +73,42 @@ curl -s -X POST "http://localhost:8080/api/documents" \
 # -----------------------------
 
 curl -s "http://localhost:8080/api/search?q=asynchronous%20byzantine%20consensus&k=3"
+
+
+
+# SmartSearch (v0.5) — Semantic Chunk Search + RAG (Spring AI + pgvector)
+
+SmartSearch is a production-style backend that ingests documents, chunks them, embeds each chunk, stores vectors in PostgreSQL (pgvector), and provides:
+- `/api/search`: semantic top-k retrieval over document chunks
+- `/api/ask`: RAG endpoint that answers questions using retrieved chunks with citations
+
+## Tech Stack
+- Java + Spring Boot
+- Spring AI (EmbeddingModel + ChatModel)
+- PostgreSQL + pgvector
+- JPA for document storage (metadata)
+- JdbcTemplate for pgvector inserts/search (`CAST(? AS vector)`, `<->` distance)
+
+## Architecture
+
+```text
+Client
+  |
+  | POST /api/documents
+  | GET  /api/search?q=...&k=...
+  | GET  /api/ask?q=...&k=...
+  v
+Spring MVC Controller
+  v
+Service Layer
+  - DocumentService: chunk -> embed -> store (doc + chunks)
+  - RagService: retrieve top-k chunks -> prompt -> LLM answer (+ citations)
+  v
+Persistence Layer
+  - Documents: JPA (id, text, created_at, embedding as TEXT)
+  - Chunks: JdbcTemplate writes (vector cast) + pgvector similarity search
+  v
+PostgreSQL + pgvector
+  - document_chunks.embedding VECTOR(1536)
+  - similarity: embedding <-> query_vector
+
