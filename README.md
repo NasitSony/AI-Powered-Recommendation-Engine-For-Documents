@@ -1,75 +1,149 @@
-# AI-Powered Recommendation Engine
-# AI-Powered Recommendation Engine for Documents
+# AI‑Powered Recommendation Engine for Documents (SmartSearch)
 
-AI-Powered Recommendation Engine for Documents is a semantic search and recommendation backend built with **Spring Boot**, **Spring AI**, and **pgvector**. It enables ingesting documents, generating vector embeddings, storing them in a vector index, and performing **semantic retrieval** for natural-language queries.
+SmartSearch is a semantic search and Retrieval‑Augmented Generation
+(RAG) backend built with:
 
-Semantic search finds results based on *meaning and context* instead of exact keyword matches, using vector embeddings stored inside PostgreSQL with the **pgvector** extension. :contentReference[oaicite:2]{index=2}
+-   Java + Spring Boot
+-   Spring AI (EmbeddingModel + ChatModel)
+-   PostgreSQL + pgvector
+-   Chunk‑level semantic search with RAG responses
 
----
+------------------------------------------------------------------------
+
+## 🔎 What It Does
+
+This project provides APIs to:
+
+### 📥 Ingest documents
+
+Breaks large text documents into chunks and embeds each chunk.
+
+### 📚 Semantic search
+
+Retrieve most relevant chunks for a query using vector similarity.
+
+### 🤖 RAG Q&A
+
+Answer questions using the retrieved chunks as evidence, with citations.
+
+------------------------------------------------------------------------
 
 ## 🚀 Features
 
-- Document ingestion with embedding generation  
-- Vector storage using pgvector or in-memory index  
-- Top-K semantic similarity search API  
-- Extensible architecture for storage backends  
-- Designed for production-style backend use cases
+### 🧠 Chunking + Embeddings
 
----
+-   Paragraph‑level document chunking
+-   Embeds each chunk using an embedding model
 
-## 🛠️ Tech Stack
+### 📍 pgvector Semantic Search
 
-| Component | Purpose |
-|-----------|---------|
-| Spring Boot | Application framework |
-| Spring AI | Embeddings & AI integration |
-| PostgreSQL + pgvector | Persistent vector search |
-| REST APIs | Document ingestion & search |
-| Maven | Build & dependency management |
+-   Stores chunk vectors in PostgreSQL with pgvector
+-   Fast similarity search using `<->` distance operator
 
----
+### 🗣️ RAG API
 
-## 📦 Setup & Run (Local)
+-   `/api/ask`: Answers questions grounded in retrieved chunks with
+    citations like `[docId#chunkId]`
 
-### Prerequisites
-- Java 17+  
-- Docker (for PostgreSQL + pgvector)  
-- `OPENAI_API_KEY` (or other provider) set as an environment variable
+------------------------------------------------------------------------
 
-### Step 1 — Database
-```bash
-docker compose up -d
+## 🧱 Architecture
 
-### Step 2 — Set Environment Variables
-```bash
-export OPENAI_API_KEY="YOUR_KEY"
+Client \| \| POST /api/documents \| GET /api/search?q=...&k=... \| GET
+/api/ask?q=...&k=... v Spring MVC Controller v Service Layer -
+DocumentService: chunk → embed → store - RagService: retrieve → prompt →
+LLM generate v JdbcTemplate + JPA + pgvector v PostgreSQL
 
-### Step 3 — Run the App
-```bash
-./mvnw spring-boot:run
+------------------------------------------------------------------------
 
-### ▶️ Full Demo Flow (Copy–Paste)
+## 📦 API Endpoints
 
-```bash
-# -----------------------------
-# 1) Ingest sample documents
-# -----------------------------
+### POST /api/documents
 
-curl -s -X POST "http://localhost:8080/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"doc-1","text":"Asynchronous Byzantine agreement and MVBA protocols for fault-tolerant distributed systems."}'
+Add or update a document (with chunking and embedding):
 
-curl -s -X POST "http://localhost:8080/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"doc-2","text":"Spring Boot microservices, caching strategies, and PostgreSQL performance tuning."}'
+``` bash
+curl -X POST http://localhost:8080/api/documents   -H "Content-Type: application/json"   -d '{"id":"doc-1","text":"..."}'
+```
 
-curl -s -X POST "http://localhost:8080/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"doc-3","text":"Kafka-based event streaming, exactly-once semantics, and real-time data pipelines."}'
+### GET /api/search
 
+Semantic search over document chunks:
 
-# -----------------------------
-# 2) Run semantic search
-# -----------------------------
+``` bash
+curl "http://localhost:8080/api/search?q=mvba&k=3"
+```
 
-curl -s "http://localhost:8080/api/search?q=asynchronous%20byzantine%20consensus&k=3"
+### GET /api/ask
+
+Retrieval‑Augmented Generation (RAG) question answering:
+
+``` bash
+curl "http://localhost:8080/api/ask?q=What%20is%20MVBA%3F&k=5"
+```
+
+------------------------------------------------------------------------
+
+## 🛠️ Setup
+
+### 1️⃣ PostgreSQL (no Docker required)
+
+``` sql
+CREATE DATABASE smartsearch;
+\c smartsearch
+CREATE EXTENSION vector;
+```
+
+### 2️⃣ Tables
+
+documents: - id TEXT PRIMARY KEY - text TEXT - created_at TIMESTAMP -
+embedding TEXT
+
+document_chunks: - doc_id TEXT - chunk_id INT - chunk_text TEXT -
+created_at TIMESTAMP - embedding VECTOR(1536) - PRIMARY KEY (doc_id,
+chunk_id)
+
+### 3️⃣ Configure Spring AI
+
+Set your provider API key in environment variables or `application.yml`.
+
+Example for OpenAI:
+
+``` yaml
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+```
+
+------------------------------------------------------------------------
+
+## 📝 Example Response
+
+``` json
+{
+  "question": "What is MVBA?",
+  "answer": "MVBA handles multiple values [doc-test#1].",
+  "sources": [
+    {"docId":"doc-test","chunkId":1,"chunkText":"MVBA handles multiple values.","distance":0.78},
+    {"docId":"doc-test","chunkId":0,"chunkText":"Byzantine agreement ensures safety.","distance":1.30}
+  ]
+}
+```
+
+------------------------------------------------------------------------
+
+## 🎯 Motivation
+
+This project demonstrates how to integrate LLMs into traditional Java
+backends by:
+
+-   orchestrating data flow between databases and AI models
+-   implementing production‑style semantic retrieval pipelines
+-   enabling grounded question answering using RAG
+
+It is intended as a foundation for further work on intelligent document
+systems and protocol research tools.
