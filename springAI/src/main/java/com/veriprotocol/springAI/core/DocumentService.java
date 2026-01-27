@@ -1,4 +1,6 @@
 package com.veriprotocol.springAI.core;
+import com.veriprotocol.springAI.core.IngestProducer;
+
 
 import java.time.Instant;
 import java.util.List;
@@ -11,6 +13,7 @@ import com.veriprotocol.springAI.persistance.ChunkSearchDao;
 import com.veriprotocol.springAI.persistance.DocumentChunkWriteDao;
 import com.veriprotocol.springAI.persistance.DocumentEntity;
 import com.veriprotocol.springAI.persistance.DocumentRepository;
+import com.veriprotocol.springAI.persistance.DocumentStatus;
 import com.veriprotocol.springAI.persistance.PgVector;
 
 @Service
@@ -20,16 +23,19 @@ public class DocumentService {
     private final DocumentRepository docRepo; // optional
     private final DocumentChunkWriteDao chunkWriteDao;
     private final ChunkSearchDao chunkSearchDao;
+    private final IngestProducer ingestProducer;
 
 	
     public DocumentService(EmbeddingModel embeddingModel,
             DocumentRepository docRepo,
             DocumentChunkWriteDao chunkWriteDao,
-            ChunkSearchDao chunkSearchDao) {
+            ChunkSearchDao chunkSearchDao,
+            IngestProducer ingestProducer) {
             this.embeddingModel = embeddingModel;
             this.docRepo = docRepo;
             this.chunkWriteDao = chunkWriteDao;
             this.chunkSearchDao = chunkSearchDao;
+            this.ingestProducer = ingestProducer;
     }
     
     @Transactional
@@ -50,6 +56,33 @@ public class DocumentService {
             chunkWriteDao.upsert(id, i, chunkText, now, vec);
         }
     }
+    
+    
+    @Transactional
+    public String createPending(String id, String text) {
+        
+        String hash = org.apache.commons.codec.digest.DigestUtils.sha256Hex(text);
+
+        DocumentEntity existing = docRepo.findById(id).orElse(null);
+        if (existing != null
+                && hash.equals(existing.getContentHash())
+                && existing.getStatus() == DocumentStatus.READY) {
+            return existing.getId();
+        }
+
+        DocumentEntity doc = (existing != null) ? existing : new DocumentEntity(id, text);
+        doc.setText(text);
+        doc.setContentHash(hash);
+        doc.setStatus(DocumentStatus.PENDING);
+        doc.setLastError(null);
+        doc.setEmbedding(null);
+
+        docRepo.save(doc);
+
+        ingestProducer.send(doc.getId(), hash);
+        return doc.getId();
+    }
+
     
     public List<ChunkSearchDao.ChunkHit> semanticSearchChunks(String query, int k) {
         String qVec = PgVector.toLiteral(embeddingModel.embed(query));

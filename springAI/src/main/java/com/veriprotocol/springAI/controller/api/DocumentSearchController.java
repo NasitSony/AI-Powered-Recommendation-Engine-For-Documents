@@ -1,4 +1,5 @@
 package com.veriprotocol.springAI.controller.api;
+import com.veriprotocol.springAI.controller.api.dto.*;
 
 import java.time.Instant;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,8 +53,8 @@ public class DocumentSearchController {
         return Map.of("status", "ok");
     }
     
-    @PostMapping("/documents")
-    public Map<String, Object> upsert(@RequestBody UpsertDocumentRequest req) {
+   /* @PostMapping("/documents")
+   // public Map<String, Object> upsert(@RequestBody UpsertDocumentRequest req) {
         String id = (req.id() == null || req.id().isBlank())
                 ? UUID.randomUUID().toString()
                 : req.id();
@@ -60,8 +62,23 @@ public class DocumentSearchController {
         documentService.addDocument(id, req.text());  // ✅ this does chunking + inserts chunks
 
         return Map.of("docId", id);
-    }
+   // }*/
+    
+  /*  @PostMapping("/documents")
+    public ResponseEntity<DocStatusResponse> create(@RequestBody DocumentRequest req) {
 
+        String docId = documentService.createPending(req);
+
+        return ResponseEntity
+            .accepted()
+            .body(new DocStatusResponse(docId, "PENDING"));
+    }*/
+
+    @PostMapping("/documents")
+    public ResponseEntity<DocStatusResponse> add(@RequestBody DocumentRequest req) {
+        String docId = documentService.createPending(req.id(), req.text());
+        return ResponseEntity.status(202).body(new DocStatusResponse(docId, "PENDING"));
+    }
     
     @GetMapping("/search")
     public List<ChunkSearchDao.ChunkHit> search(@RequestParam(name = "q") String q,

@@ -1,0 +1,2 @@
+ALTER TABLE documents
+  ALTER COLUMN embedding DROP NOT NULL;
