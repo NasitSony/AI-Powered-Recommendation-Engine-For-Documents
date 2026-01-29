@@ -21,7 +21,7 @@ public class IngestProducer {
     this.topic = topic;
   }
 
-  public void send(String docId, String contentHash) {
-    kafkaTemplate.send(topic, docId, new IngestRequestEvent(docId, contentHash, Instant.now()));
+  public void send(String docId, String content, String contentHash) {
+    kafkaTemplate.send(topic, docId, new IngestRequestEvent(docId, content, contentHash, Instant.now()));
   }
 }

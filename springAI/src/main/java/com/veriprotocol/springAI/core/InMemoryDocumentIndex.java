@@ -7,8 +7,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
 
-import com.networknt.schema.OutputFormat.List;
-
 @Component
 public class InMemoryDocumentIndex {
 	public record Document(String id, String text, float[] embedding, Instant createdAt) {}
@@ -21,8 +19,8 @@ public class InMemoryDocumentIndex {
         docs.put(id, d);
         return d;
     }
-    
-    
+
+
     public int size() {
         return docs.size();
     }
@@ -36,10 +34,14 @@ public class InMemoryDocumentIndex {
         // Deterministic ordering: score desc, then id asc
         scored.sort((a, b) -> {
             int c = Double.compare(b.score(), a.score());
-            if (c != 0) return c;
+            if (c != 0) {
+				return c;
+			}
             return a.doc().id().compareTo(b.doc().id());
         });
-        if (k < scored.size()) return (ArrayList<ScoredDocument>) scored.subList(0, k);
+        if (k < scored.size()) {
+			return (ArrayList<ScoredDocument>) scored.subList(0, k);
+		}
         return scored;
     }
 }

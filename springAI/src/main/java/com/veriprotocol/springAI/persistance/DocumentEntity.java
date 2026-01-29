@@ -10,18 +10,19 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 
 
 @Entity
 @Table(name = "documents")
 public class DocumentEntity {
-	
-	
+
+
 	//@Enumerated(EnumType.STRING)
 	//@Column(nullable = false)
 	//private DocumentStatus status = DocumentStatus.PENDING;
-	
+
 	@Column(name = "status", nullable = false)
 	@Enumerated(EnumType.STRING)
 	private DocumentStatus status = DocumentStatus.PENDING;
@@ -39,20 +40,21 @@ public class DocumentEntity {
 
 	@Id
 	private String id;
-	
+
 	@Column(name = "text", nullable = false, columnDefinition = "TEXT")
 	private String text;
-	
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
-	
+
 	// Store vector as String in JPA (we’ll query via JdbcTemplate for similarity)
+	@Transient
 	@Column(name = "embedding", columnDefinition = "TEXT")
 	private String embedding; // nullable until worker fills it
 
 
     protected DocumentEntity() {}
-    
+
     public DocumentEntity(String id, String text) {
     	  this.id = id;
     	  this.text = text;
@@ -68,7 +70,7 @@ public class DocumentEntity {
     	  this.status = DocumentStatus.READY; // if embedding exists
     	  touch();
     }
-    
+
     public String getId() { return id; }
     public String getText() { return text; }
    // public Instant getCreatedAt() { return createdAt; }
@@ -76,7 +78,7 @@ public class DocumentEntity {
 
     public void setText(String text) { this.text = text; }
     public void setEmbedding(String embedding) { this.embedding = embedding; }
-    
+
     public DocumentStatus getStatus() { return status; }
     public void setStatus(DocumentStatus status) { this.status = status; }
 
@@ -88,21 +90,23 @@ public class DocumentEntity {
 
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getCreatedAt() { return createdAt; }
-    
-    
+
+
     @PrePersist
     void onCreate() {
-      if (createdAt == null) createdAt = Instant.now();
+      if (createdAt == null) {
+		createdAt = Instant.now();
+	  }
       touch();
     }
-    
+
     @PreUpdate
     void onUpdate() {
       touch();
     }
 
 
-    
+
     private void touch() {
     	  this.updatedAt = Instant.now();
     }

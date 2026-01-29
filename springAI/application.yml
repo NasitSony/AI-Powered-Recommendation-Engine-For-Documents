@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartsearch
+    url: jdbc:postgresql://localhost:5433/smartsearch
     username: smartsearch
     password: password
   jpa:
@@ -16,11 +16,19 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.add.type.headers: false   
+        spring.json.add.type.headers: false 
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.veriprotocol.springAI.core.IngestRequestEvent  
   flyway:
     enabled: true  
     baseline-on-migrate: true
     baseline-version: 1
+    locations: classpath:db/migration
   autoconfigure:
     exclude:
       - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration
@@ -38,7 +46,8 @@ smartsearch:
   embedding:
     dims: 1536
   kafka:
-    ingest-topic: smartsearch.ingest.v1
+    ingest-topic: smartsearch.ingest.v5
+    ingest-dlq-topic: smartsearch.ingest.v5.dlq
     
      
 
