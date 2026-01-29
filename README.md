@@ -46,6 +46,21 @@ Answer questions using the retrieved chunks as evidence, with citations.
 -   `/api/ask`: Answers questions grounded in retrieved chunks with
     citations like `[docId#chunkId]`
 
+
+### 🧵 Asynchronous Ingestion with Kafka (v0.6)
+
+To decouple API responsiveness from embedding and storage workflows, SmartSearch introduces **Kafka-based asynchronous ingestion**.
+
+- API layer publishes ingestion requests as events
+- Worker service consumes events and performs:
+  - document chunking
+  - embedding generation
+  - vector persistence
+- Request lifecycle is tracked explicitly (`PENDING → SUCCESS`)
+- Failure scenarios are surfaced rather than hidden (FAILED handling in progress)
+
+This design shifts the system from a synchronous demo pipeline to an **event-driven backend**, exposing real-world reliability and correctness challenges.    
+
 ------------------------------------------------------------------------
 
 ## 🧱 Architecture
@@ -54,6 +69,25 @@ Client \| \| POST /api/documents \| GET /api/search?q=...&k=... \| GET
 /api/ask?q=...&k=... v Spring MVC Controller v Service Layer -
 DocumentService: chunk → embed → store - RagService: retrieve → prompt →
 LLM generate v JdbcTemplate + JPA + pgvector v PostgreSQL
+
+
+Client  
+↓  
+Spring Boot API  
+- POST /api/documents  
+- Publishes ingestion event (Kafka)  
+↓  
+Kafka Topic (`document.ingestion`)  
+↓  
+Worker / Consumer Service  
+- Chunk document  
+- Generate embeddings  
+- Persist vectors  
+↓  
+PostgreSQL + pgvector  
+
+Search & RAG Flow (Synchronous):  
+Client → API → pgvector similarity search → LLM → Response
 
 
 ### Architecture Notes
@@ -141,6 +175,15 @@ spring:
 }
 ```
 
+### 4️⃣ Kafka (for async ingestion)
+
+Kafka is used for asynchronous document ingestion in v0.6.
+
+You can run Kafka locally using Docker Compose or any local Kafka setup.
+The API publishes ingestion events, and a worker service consumes and processes them.
+
+(Failure handling, retries, and dead-letter queues are being added incrementally.)
+
 ------------------------------------------------------------------------
 
 
@@ -155,7 +198,7 @@ SmartSearch is an incremental backend project that started with semantic search 
   - RAG question answering with grounded citations
 
 - **v0.6 — Async Ingestion & Reliability Foundations**
-  - Kafka-based asynchronous document ingestion
+  - Kafka-based event-driven ingestion, decoupling API latency from embedding and persistence
   - Decoupled API and worker-style processing
   - Explicit request lifecycle states (PENDING → SUCCESS)
   - Focus on observability and failure-mode awareness
