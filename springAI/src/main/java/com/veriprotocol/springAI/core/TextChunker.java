@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class TextChunker {
-	
-	
+
+
 	private TextChunker() {}
 
 	public static List<String> chunk(String text, int maxChars) {
@@ -15,7 +15,9 @@ public final class TextChunker {
 	    List<String> out = new ArrayList<>();
 	    for (String p : paras) {
 	        String para = p.trim();
-	        if (para.isEmpty()) continue;
+	        if (para.isEmpty()) {
+				continue;
+			}
 
 	        // hard-split if a paragraph is too large
 	        for (int i = 0; i < para.length(); i += maxChars) {

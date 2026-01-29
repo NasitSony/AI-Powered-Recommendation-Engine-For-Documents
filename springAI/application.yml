@@ -1,18 +1,38 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartsearch
+    url: jdbc:postgresql://localhost:5433/smartsearch
     username: smartsearch
     password: password
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         jdbc:
           timezone: UTC
-
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false 
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.veriprotocol.springAI.core.IngestRequestEvent  
   flyway:
-    enabled: false	  	
+    enabled: true  
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration
+      - io.milvus.spring.autoconfigure.MilvusAutoConfiguration	
   ai:
    openai:
      api-key: ${OPENAI_API_KEY}
@@ -22,14 +42,15 @@ spring:
      embedding:
         options:
           model: text-embedding-3-small
-  smartsearch:
-    embedding:
-      dims: 1536
+smartsearch:
+  embedding:
+    dims: 1536
+  kafka:
+    ingest-topic: smartsearch.ingest.v5
+    ingest-dlq-topic: smartsearch.ingest.v5.dlq
+    
      
 
-  autoconfigure:
-    exclude:
-      - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration
-
+  
 server:
   address: 0.0.0.0

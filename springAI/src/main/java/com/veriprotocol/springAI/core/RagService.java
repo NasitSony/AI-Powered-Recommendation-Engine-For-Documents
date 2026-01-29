@@ -13,22 +13,22 @@ import com.veriprotocol.springAI.persistance.ChunkSearchDao;
 
 @Service
 public class RagService {
-	
+
 	private final DocumentService documentService;
     private final ChatModel chatModel;
-    
+
     public RagService(DocumentService documentService, ChatModel chatModel) {
         this.documentService = documentService;
         this.chatModel = chatModel;
     }
-    
+
     public AskResponse ask(String question, int k) {
         List<ChunkSearchDao.ChunkHit> hits = documentService.semanticSearchChunks(question, k);
 
         String sources = hits.stream()
                 .map(h -> "[source: " + h.docId() + "#" + h.chunkId() + "]\n" + h.chunkText())
                 .collect(Collectors.joining("\n\n---\n\n"));
-        
+
         String template = """
                 You are a helpful assistant.
                 Use ONLY the provided sources to answer the question.
@@ -45,13 +45,13 @@ public class RagService {
                 "question", question,
                 "sources", sources
         ));
-        
-        
+
+
         String answer = chatModel.call(prompt).getResult().getOutput().getText();
 
         return new AskResponse(question, answer, hits);
     }
-    
+
     public record AskResponse(String question, String answer, List<ChunkSearchDao.ChunkHit> sources) {}
 
 

@@ -10,13 +10,13 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class ChunkSearchDao {
-	
+
 	private final JdbcTemplate jdbcTemplate;
 
     public ChunkSearchDao(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
-    
+
     public List<ChunkHit> searchTopK(String queryVectorLiteral, int k) {
 
         String sql = """
@@ -43,7 +43,7 @@ public class ChunkSearchDao {
                 }
         );
     }
-    
+
     public record ChunkHit(String docId, int chunkId, String chunkText, double distance) {}
 
 

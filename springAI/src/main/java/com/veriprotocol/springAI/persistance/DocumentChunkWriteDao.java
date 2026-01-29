@@ -8,17 +8,17 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class DocumentChunkWriteDao {
-	
+
 	private final JdbcTemplate jdbc;
 
     public DocumentChunkWriteDao(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
-    
+
     public void deleteByDocId(String docId) {
         jdbc.update("DELETE FROM document_chunks WHERE doc_id = ?", docId);
     }
-    
+
     public void upsert(String docId, int chunkId, String chunkText, Instant createdAt, String vectorLiteral) {
         String sql = """
             INSERT INTO document_chunks (doc_id, chunk_id, chunk_text, created_at, embedding)
