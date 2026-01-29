@@ -1,5 +1,6 @@
 # AI‑Powered Recommendation Engine for Documents (SmartSearch)
 
+> 🚧 This project is being **built in public** to explore how AI-powered search systems evolve when real backend and distributed-systems concerns are introduced.
 
 SmartSearch is an AI-powered document search and recommendation backend, starting with semantic search and RAG and evolving toward reliable, production-style distributed services, built with:
 
@@ -9,34 +10,6 @@ SmartSearch is an AI-powered document search and recommendation backend, startin
 -   Chunk‑level semantic search with RAG responses
 
 ------------------------------------------------------------------------
-
-# Building in Public / Project Evolution
-
-> 🚧 This project is being **built in public** to explore how AI-powered search systems evolve when real backend and distributed-systems concerns are introduced.
-
-## Project Evolution
-
-SmartSearch is an incremental backend project that started with semantic search and RAG, and is gradually evolving toward production-style reliability and correctness.
-
-- **v0.5 — Semantic Search & RAG Core**
-  - Spring AI–based embeddings and chat models
-  - PostgreSQL + pgvector for vector similarity search
-  - Paragraph-level chunking and retrieval
-  - RAG question answering with grounded citations
-
-- **v0.6 — Async Ingestion & Reliability Foundations**
-  - Kafka-based asynchronous document ingestion
-  - Decoupled API and worker-style processing
-  - Explicit request lifecycle states (PENDING → SUCCESS)
-  - Focus on observability and failure-mode awareness
-
-- **Next — Failure Handling & Correctness**
-  - Reliable FAILED-state persistence
-  - Retry semantics and idempotent writes
-  - Dead-letter handling and error classification
-
-------------------------------------------------------------------------
-
 
 ## 🔎 What It Does
 
@@ -168,6 +141,30 @@ spring:
 }
 ```
 
+------------------------------------------------------------------------
+
+
+## Project Evolution
+
+SmartSearch is an incremental backend project that started with semantic search and RAG, and is gradually evolving toward production-style reliability and correctness.
+
+- **v0.5 — Semantic Search & RAG Core**
+  - Spring AI–based embeddings and chat models
+  - PostgreSQL + pgvector for vector similarity search
+  - Paragraph-level chunking and retrieval
+  - RAG question answering with grounded citations
+
+- **v0.6 — Async Ingestion & Reliability Foundations**
+  - Kafka-based asynchronous document ingestion
+  - Decoupled API and worker-style processing
+  - Explicit request lifecycle states (PENDING → SUCCESS)
+  - Focus on observability and failure-mode awareness
+
+- **Next — Failure Handling & Correctness**
+  - Reliable FAILED-state persistence
+  - Retry semantics and idempotent writes
+  - Dead-letter handling and error classification
+ 
 ------------------------------------------------------------------------
 
 ## 🎯 Motivation
