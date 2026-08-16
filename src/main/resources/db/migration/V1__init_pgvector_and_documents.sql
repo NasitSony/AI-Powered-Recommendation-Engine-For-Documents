@@ -4,7 +4,7 @@ CREATE TABLE documents (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  embedding vector(1536) NOT NULL
+  embedding vector(768) NOT NULL
 );
 
 -- Helpful index for text search fallback later (optional)

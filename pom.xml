@@ -112,7 +112,7 @@
        <!-- Source: https://mvnrepository.com/artifact/org.springframework.ai/spring-ai-openai-spring-boot-starter -->
        <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
+            <artifactId>spring-ai-starter-model-ollama</artifactId>
        </dependency>
        
        <dependency>

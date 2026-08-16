@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_id   INT  NOT NULL,
   chunk_text TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  embedding  VECTOR(1536) NOT NULL,
+  embedding  VECTOR(768) NOT NULL,
   PRIMARY KEY (doc_id, chunk_id)
 );
 

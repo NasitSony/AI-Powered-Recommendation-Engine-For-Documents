@@ -55,7 +55,7 @@ spring:
         max.partition.fetch.bytes: 52428800
   
   flyway:
-    enabled: false  
+    enabled: true
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
@@ -64,17 +64,19 @@ spring:
       - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration
       - io.milvus.spring.autoconfigure.MilvusAutoConfiguration	
   ai:
-   openai:
-     api-key: ${OPENAI_API_KEY}
-     chat:
-       options:
-         model: gpt-4.1-mini
-     embedding:
+    ollama:
+      base-url: http://localhost:11434
+
+      chat:
         options:
-          model: text-embedding-3-small
+          model: llama3.1:8b
+
+      embedding:
+        options:
+          model: nomic-embed-text
 smartsearch:
   embedding:
-    dims: 1536
+    dims: 768
   kafka:
     ingest-topic: smartsearch.ingest.v6
     ingest-dlq-topic: smartsearch.ingest.v6.dlq
