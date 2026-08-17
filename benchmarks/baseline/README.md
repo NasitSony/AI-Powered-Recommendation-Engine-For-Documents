@@ -785,3 +785,440 @@ capacity constraint for this workload.
 Further scaling would likely require changing the embedding architecture
 rather than simply increasing Kafka consumer count or local request
 parallelism.
+
+#Day 2
+
+## F1 — Worker Hard-Crash Recovery
+
+### Failure Injection
+
+The worker JVM was terminated immediately after acquiring the processing
+lease and loading the document payload, but before embedding or marking
+the document READY.
+
+### Initial State After Crash
+
+- Status: `PROCESSING`
+- Retry count: 0
+- Worker ID: present
+- `processing_started_at`: present
+- `next_retry_at`: null
+- `last_error`: null
+
+This confirmed that the database lease survived the worker process while
+the Kafka listener did not complete successfully.
+
+### Recovery Path Observed
+
+The stale-processing reaper detected the expired lease and transitioned
+the document:
+
+`PROCESSING -> FAILED`
+
+The reaper incremented `retry_count` and scheduled a later retry.
+
+`RetryJob` subsequently moved the document:
+
+`FAILED -> PENDING`
+
+and republished it to Kafka.
+
+### Retry Accounting Defect
+
+The experiment exposed a retry-count accounting bug.
+
+The reaper increments `retry_count` when the failed processing attempt is
+detected. `resetFailedToPending()` then increments the counter a second time
+when requeueing the same document.
+
+Therefore one processing failure can consume more than one retry-count unit.
+
+During this experiment, an additional Ollama outage caused subsequent
+embedding attempts to fail. The document eventually reached:
+
+- Status: `FAILED`
+- Retry count: 3
+
+Because `RetryJob` only selects documents where `retry_count < 3`, automatic
+recovery stopped.
+
+### Conclusion
+
+Kafka durability alone was insufficient for recovering a document whose
+database lease remained `PROCESSING`.
+
+SmartSearch's reaper and retry publisher correctly provided stale-work
+recovery, but the experiment uncovered incorrect retry-budget accounting.
+
+Retry count should represent failed processing attempts, not both failure
+detection and requeue operations.
+
+## F1b — Worker Crash Recovery After Retry Accounting Fix
+
+### Change
+
+`resetFailedToPending()` previously incremented `retry_count` while moving a
+FAILED document back to PENDING.
+
+This caused a single failed processing attempt to consume two retry-count
+units:
+
+`PROCESSING -> FAILED` incremented the counter, and
+`FAILED -> PENDING` incremented it again.
+
+The requeue operation was changed to preserve the existing retry count.
+
+### Failure Injection
+
+A new document was submitted and the JVM was terminated immediately after
+the consumer acquired its processing lease.
+
+Immediately after the crash:
+
+- Status: `PROCESSING`
+- Retry count: 0
+- Worker ID: present
+- `processing_started_at`: present
+
+### Recovery Result
+
+The system recovered automatically through:
+
+`PROCESSING -> FAILED -> PENDING -> PROCESSING -> READY`
+
+Final database state:
+
+- Status: `READY`
+- Retry count: 1
+- Worker ID: null
+- `processing_started_at`: null
+- `next_retry_at`: null
+- `last_error`: null
+
+### Conclusion
+
+After correcting retry accounting, one hard worker failure consumes exactly
+one retry-count unit.
+
+The stale-lease reaper and retry publisher successfully recovered abandoned
+work without manual intervention, and the document eventually reached READY.
+
+## F2 — Crash After Chunk Persistence
+
+### Goal
+
+Verify that replay after a worker crash does not leave duplicate derived
+chunk/vector rows when the crash occurs after chunk persistence but before
+the parent document is marked READY.
+
+### Failure Injection
+
+The worker was terminated immediately after:
+
+`documentService.addDocument(docId, text)`
+
+completed, but before:
+
+`documentService.markReadyDb(docId)`
+
+and before successful Kafka listener completion.
+
+### State Immediately After Crash
+
+Parent document:
+
+- Status: `PROCESSING`
+- Retry count: 0
+- Worker lease: present
+
+Derived data:
+
+- Chunk 0 already existed
+- Copies for `(doc_id, chunk_id=0)`: 1
+
+This confirmed that the worker crashed after derived data had been persisted.
+
+### Recovery
+
+The stale lease was detected by the reaper:
+
+`PROCESSING -> FAILED`
+
+with:
+
+- Retry count: 1
+- Error: `stuck PROCESSING (lease expired)`
+
+The retry job subsequently republished the document and a healthy worker
+reprocessed it.
+
+Final parent state:
+
+- Status: `READY`
+- Retry count: 1
+- Last error: null
+
+Final derived-data state:
+
+- Chunk 0 copies: 1
+
+### Conclusion
+
+Replay after a post-write/pre-completion worker crash converged to one logical
+chunk row rather than creating duplicates.
+
+SmartSearch achieves an effectively-once result for this ingestion path
+through deterministic chunk identity, database uniqueness, rebuild/upsert
+semantics, durable processing state, stale-lease recovery, and Kafka replay.
+
+## F3 — PostgreSQL Outage and Recovery
+
+### Goal
+
+Verify that SmartSearch fails safely when PostgreSQL, the durable source of
+truth for document state, is unavailable and resumes ingestion after database
+recovery.
+
+### Failure Injection
+
+The PostgreSQL container was stopped while the Spring Boot application,
+Kafka, and other services remained running.
+
+### Behavior During Outage
+
+A new document ingestion request returned:
+
+- HTTP status: `503 Service Unavailable`
+- Error code: `DB_UNAVAILABLE`
+- Message: `Database is unavailable. Please retry.`
+
+The API did not return `202 Accepted` while durable document state could not
+be persisted.
+
+### Recovery
+
+PostgreSQL was restarted.
+
+After recovery:
+
+- `/actuator/health` returned HTTP 200
+- Application health returned `UP`
+- A new ingestion request returned `202 Accepted`
+- Document ID: `a2939d38-cff9-4e3a-b27b-764018a33089`
+
+### Conclusion
+
+SmartSearch fails fast at the ingestion boundary when its source-of-truth
+database is unavailable rather than acknowledging non-durable work.
+
+Once PostgreSQL recovers, the application resumes accepting new ingestion
+without requiring an application restart.
+
+The recovery-test document subsequently reached `READY` with:
+
+- Retry count: 0
+- Last error: null
+
+This confirmed that normal ingestion resumed successfully after PostgreSQL
+recovery without requiring a SmartSearch application restart.
+
+
+## F4 — PostgreSQL Failure During In-Flight Processing
+
+### Goal
+
+Determine how SmartSearch behaves when PostgreSQL becomes unavailable after
+a worker has already claimed a document and begun processing it.
+
+### Failure Injection
+
+A temporary chaos hook paused the worker for 15 seconds after acquiring the
+processing lease and loading the document payload.
+
+PostgreSQL was stopped during this window.
+
+### Observed Failure
+
+The worker subsequently failed when attempting database-backed processing.
+
+The application logged an ingestion failure and persisted:
+
+`Failed to obtain JDBC Connection`
+
+once database connectivity became available again.
+
+### Recovery Path
+
+The Kafka listener did not complete successfully, so Spring Kafka's
+`DefaultErrorHandler` initiated an immediate record-level retry.
+
+Configuration:
+
+- Backoff: 2 seconds
+- Retry attempts: 3
+
+The same Kafka record was delivered again approximately two seconds later.
+
+By that time PostgreSQL had recovered. The retry successfully:
+
+- acquired processing ownership
+- generated the embedding
+- wrote the chunk/vector data
+- marked the document READY
+
+Final state:
+
+- Status: `READY`
+- Retry count: 0
+- Last error: null
+
+### Key Finding
+
+The stale-lease reaper was not required for this failure.
+
+Because the JVM remained alive and the listener threw an ordinary processing
+exception, Spring Kafka's local error-handler retry provided the faster
+recovery path.
+
+This demonstrates two different recovery layers in SmartSearch:
+
+1. transient processing failures:
+   Kafka listener retry/backoff
+
+2. abandoned PROCESSING leases after hard worker failure:
+   ReaperJob + RetryJob + Kafka republish
+
+### Conclusion
+
+SmartSearch can recover from a transient PostgreSQL outage during in-flight
+processing without restarting the application and without waiting for lease
+expiration.
+
+The Kafka listener's retry mechanism provides fast recovery for transient
+dependency failures, while durable lease recovery remains the fallback for
+worker/process death.
+
+## F5 — Embedding Service Outage and Recovery
+
+### Goal
+
+Verify SmartSearch behavior when the embedding dependency becomes unavailable
+while PostgreSQL and Kafka remain healthy.
+
+### Failure Injection
+
+Ollama was stopped while SmartSearch remained running.
+
+A new document was submitted.
+
+### Initial Behavior
+
+The API successfully returned `202 Accepted` because durable document state
+could still be persisted to PostgreSQL.
+
+The worker subsequently failed when calling the local Ollama embedding API.
+
+The document transitioned to:
+
+- Status: `FAILED`
+- Retry count: 0
+- Last error: Ollama embedding I/O failure
+- `next_retry_at`: scheduled using backoff
+
+### Local Kafka Retry Behavior
+
+Spring Kafka's error handler retried each failed record locally using its
+configured fixed backoff.
+
+The original delivery was followed by three local retries.
+
+After those retries were exhausted, the durable RetryJob later republished
+the document as a new Kafka record. The new record again received its own
+local retry cycle.
+
+This demonstrated retry amplification across two retry layers:
+
+Kafka listener retries
++
+durable RetryJob republishes.
+
+### Recovery
+
+Ollama was restored.
+
+Without manual document retry, SmartSearch subsequently processed the
+document successfully.
+
+Final state:
+
+- Status: `READY`
+- Last error: null
+- Retry count: 0
+
+### Reliability Issue Discovered
+
+Although the document experienced multiple real processing failures,
+`retry_count` remained 0.
+
+After correcting the earlier double-counting bug, requeue operations correctly
+stopped incrementing the retry counter. However, ordinary processing failures
+such as embedding-service failures do not currently increment the durable
+counter either.
+
+As a result, the configured durable retry limit does not bound retries for
+ordinary dependency failures.
+
+### Conclusion
+
+SmartSearch successfully recovered automatically from an embedding-service
+outage after Ollama returned.
+
+However, the experiment exposed two related retry-policy issues:
+
+1. local Kafka retries and durable RetryJob retries multiply attempts during
+   a sustained dependency outage;
+2. ordinary processing failures do not consume the durable retry budget.
+
+The retry policy needs a single, clearly defined attempt-counting model before
+being considered production-safe.
+
+### Terminal Retry Budget and Manual Recovery
+
+After three exhausted durable processing cycles, the document reached:
+
+- Status: `FAILED`
+- Retry count: 3
+- Automatic retry eligibility: exhausted
+
+`RetryJob` correctly stopped republishing the document because the configured
+maximum durable retry count had been reached.
+
+After the embedding dependency was restored, an operator initiated a manual
+retry through:
+
+`POST /api/admin/retry/{id}`
+
+The document transitioned:
+
+`FAILED -> PENDING -> PROCESSING -> READY`
+
+Final state:
+
+- Status: `READY`
+- Retry count: 3
+- Last error: null
+- Worker ID: null
+- `next_retry_at`: null
+
+### Final F5 Conclusion
+
+The corrected retry architecture now provides three recovery levels:
+
+1. fast local Kafka retries for transient failures;
+2. bounded durable retries with backoff across processing cycles;
+3. terminal FAILED state requiring operator intervention after retry-budget
+   exhaustion.
+
+This prevents the unbounded retry amplification observed in the original
+implementation while still allowing successful recovery after the failed
+dependency becomes available again.

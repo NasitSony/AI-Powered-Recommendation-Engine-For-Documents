@@ -1,6 +1,7 @@
 package com.veriprotocol.springAI.config;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,7 +45,10 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
         (record, ex) -> new TopicPartition(dlqTopic, record.partition())
     ) {
         @Override
-        public void accept(ConsumerRecord<?, ?> record, Exception ex) {
+        public void accept(
+                ConsumerRecord<?, ?> record,
+                Consumer<?, ?> consumer,
+                Exception ex) {
 
             //String docId = (record.key() == null) ? "null" : record.key().toString();
             String docId = record.key() != null ? record.key().toString() : "unknown";
@@ -64,15 +68,31 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
             );
 
             // ✅ Persist FAILED state (best effort; don't block DLQ publishing)
+            // Local Kafka retries have now been exhausted.
+// Count ONE durable retry cycle.
             try {
                 if (record.key() != null) {
-                    documentService.markFailedDb(docId, rootMessage(ex));
+                    int retryCount =
+                            documentService.markRetryCycleExhausted(
+                                    docId,
+                                    rootMessage(ex)
+                            );
+
+                    log.warn(
+                            "metric=retry_cycle_exhausted docId={} durableRetryCount={}",
+                            docId,
+                            retryCount
+                    );
                 }
             } catch (Exception e) {
-                log.error("DLQ: failed to mark doc FAILED, continuing DLQ publish", e);
+                log.error(
+                        "Failed to persist exhausted retry cycle docId={}",
+                        docId,
+                        e
+                );
             }
 
-            super.accept(record, ex); // ✅ publish to DLQ
+            super.accept(record, consumer, ex); // ✅ publish to DLQ
         }
     };
 }

@@ -111,6 +111,8 @@ public class IngestConsumer {
                 return;
             }
 
+
+
          // 3) Load payload (text) from DB (Kafka carries only docId)
             long loadStart = System.nanoTime();
             DocumentReadDao.DocPayload payload = documentReadDao.loadDocPayload(docId);
@@ -118,16 +120,38 @@ public class IngestConsumer {
                     (System.nanoTime() - loadStart) / 1_000_000;
 
             String text = payload.text();
+
+            // Hard-crash test: simulates JVM/process death after lease claim
+            /*if (text.contains("CRASH_AFTER_CLAIM")) {
+                log.error("CHAOS_WORKER_HARD_CRASH docId={}", docId);
+                Runtime.getRuntime().halt(137);
+            }*/
+
+            /*if (text.contains("DB_DOWN_TEST")) {
+                log.warn("CHAOS_DB_DOWN_WINDOW docId={} sleeping_before_work_ms=15000", docId);
+                try {
+                    Thread.sleep(15_000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Chaos sleep interrupted", ie);
+                }
+            }*/
             
             //Throw exception in consumer
-            if (text.contains("FAIL")) {
+            /*if (text.contains("FAIL")) {
                 log.error("TEST_SIMULATED_EXCEPTION docId={}", docId);
                 throw new RuntimeException("Simulated consumer failure for retry test");
-            }
+            }*/
            
             // 4) Do the real work (chunk + embed + write chunks)
             long workStart = System.nanoTime();
             documentService.addDocument(docId, text);
+
+            /*if (text.contains("CRASH_AFTER_WRITE")) {
+                log.error("CHAOS_CRASH_AFTER_WRITE docId={}", docId);
+                Runtime.getRuntime().halt(137);
+            }*/
+
             long workMs =
                     (System.nanoTime() - workStart) / 1_000_000;
            
@@ -158,16 +182,16 @@ public class IngestConsumer {
             ingestMetrics.onSucceeded();
 
         } catch (Exception e) {
-        	log.error("❌ Ingest failed docId={}", docId, e);
-            try {
-                documentService.markFailedDb(docId, e.getMessage());
-                long e2eMs = java.time.Duration.between(createdAt.toInstant(), java.time.Instant.now()).toMillis();
-                log.info("metric=e2e_latency_ms docId={} value={} status=FAILED", docId, e2eMs);
-            } catch (Exception markErr) {
-                log.warn("markFailedDb skipped (DB unavailable) docId={}: {}", docId, markErr.getMessage());
-            }
-            ingestMetrics.onFailed();
-            throw e; // keep retry/DLQ flow
+
+            log.error("❌ Ingest attempt failed docId={}", docId, e);
+
+            // Do NOT mark durable FAILED here.
+            // Spring Kafka local retries are still part of the same processing cycle.
+            // Durable FAILED + retry_count increment happens only after
+            // DefaultErrorHandler exhausts its local retry policy.
+
+            throw e;
+
         } finally {
             MDC.clear();
         }

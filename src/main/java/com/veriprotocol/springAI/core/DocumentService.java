@@ -191,6 +191,10 @@ public class DocumentService{
         documentWriteDao.markReady(docId);
     }
 
+
+    public int markRetryCycleExhausted(String docId, String msg) {
+        return documentWriteDao.markRetryCycleExhausted(docId, msg);
+    }
    // public void markError(String docId, String msg) {
       //  documentWriteDao.updateStatus(docId, DocumentStatus.ERROR);
     //}

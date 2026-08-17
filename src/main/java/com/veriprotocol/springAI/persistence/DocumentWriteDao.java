@@ -89,24 +89,34 @@ public class DocumentWriteDao {
 
 
     public boolean claimProcessingLease(String docId, String workerId) {
-    var rows = jdbcTemplate.queryForList("""
+
+        var rows = jdbcTemplate.queryForList("""
         UPDATE documents
         SET status = 'PROCESSING',
             worker_id = ?,
-            processing_started_at = now(),
+            processing_started_at =
+                CASE
+                    WHEN status = 'PROCESSING'
+                    THEN processing_started_at
+                    ELSE now()
+                END,
             updated_at = now()
         WHERE id = ?
-          AND status IN ('PENDING', 'FAILED')
+          AND (
+                status IN ('PENDING', 'FAILED')
+                OR
+                (status = 'PROCESSING' AND worker_id = ?)
+              )
         RETURNING id
         """,
-        String.class,
-        workerId,   // first ?
-        docId       // second ?
-    );
+                String.class,
+                workerId,
+                docId,
+                workerId
+        );
 
-    return !rows.isEmpty();
-}
-
+        return !rows.isEmpty();
+    }
 
     public void markReady(String docId) {
         jdbcTemplate.update("""
@@ -162,7 +172,6 @@ public class DocumentWriteDao {
         return jdbcTemplate.update("""
             UPDATE documents
             SET status = 'PENDING',
-              retry_count = retry_count + 1,
               last_error = NULL,
               next_retry_at = NULL,
               processing_started_at = NULL,
@@ -213,6 +222,33 @@ public class DocumentWriteDao {
         """, docId, cooldownSeconds);
     }
 
+    public int markRetryCycleExhausted(String docId, String errorMessage) {
+        String msg = truncate(errorMessage, 800);
 
+        Integer retryCount = jdbcTemplate.queryForObject("""
+        UPDATE documents
+        SET status = 'FAILED',
+            retry_count = retry_count + 1,
+            last_error = ?,
+            next_retry_at =
+                now() + make_interval(
+                    secs => LEAST(
+                        600,
+                        10 * (2 ^ LEAST(retry_count + 1, 6))
+                    )::int
+                ),
+            processing_started_at = NULL,
+            worker_id = NULL,
+            updated_at = now()
+        WHERE id = ?
+        RETURNING retry_count
+        """,
+                Integer.class,
+                msg,
+                docId
+        );
+
+        return retryCount == null ? 0 : retryCount;
+    }
 
 }
