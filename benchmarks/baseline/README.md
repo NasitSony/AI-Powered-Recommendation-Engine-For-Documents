@@ -567,3 +567,221 @@ increasing throughput.
 The next scaling experiment should determine whether additional Kafka
 partitions and consumers improve throughput further or whether contention
 in the shared local embedding service causes diminishing returns.
+
+
+## Experiment B9 — Four Partitions and Four Consumers
+
+### Goal
+
+Determine whether doubling Kafka-side parallelism from two consumers to four
+continues to increase ingestion throughput after the original partition
+bottleneck was removed.
+
+### Configuration
+
+- Documents: 500
+- Producer concurrency: 4
+- Kafka partitions: 4
+- Listener concurrency: 4
+- Consumer group: `smartsearch-workers`
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+- Workload: small one-chunk documents
+
+### Results
+
+- Producer rate: 90.493 docs/s
+- Completion rate: 67.569 docs/s
+- READY: 500/500
+- FAILED: 0
+- Average latency: 1585.865 ms
+- p50: 1694.256 ms
+- p95: 2253.725 ms
+- p99: 2366.335 ms
+- Max: 2383.246 ms
+
+### Observation
+
+Doubling Kafka partitions and listener concurrency from two to four produced
+only a small throughput improvement.
+
+The two-consumer configuration repeatedly completed approximately 63–65
+documents/sec, while the four-consumer configuration completed approximately
+67.6 documents/sec.
+
+Tail latency remained broadly similar.
+
+### Conclusion
+
+Kafka partition count was no longer the dominant throughput constraint.
+
+The strong scaling improvement observed when moving from one active consumer
+to two did not continue when moving from two consumers to four.
+
+Combined with the B8 stage profiling result, where embedding accounted for
+approximately 92% of measured worker processing time, this indicates that
+the bottleneck has migrated downstream from Kafka consumption toward the
+shared embedding-inference path.
+
+Additional Kafka consumers alone are therefore unlikely to materially
+increase ingestion capacity without scaling or changing the embedding tier.
+
+
+## Experiment B10 — Embedding Contention Under Four Consumers
+
+### Goal
+
+Determine why increasing Kafka partitions and active consumers from two to
+four produced only a small throughput improvement.
+
+### Configuration
+
+- Documents: 500
+- Producer concurrency: 4
+- Kafka partitions: 4
+- Active consumers: 4
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+- Workload: small one-chunk documents
+- Ollama model warm before benchmark
+
+### Stage Timing Results
+
+| Stage | Average | p50 | p95 | p99 |
+|---|---:|---:|---:|---:|
+| Lease claim | 0.22 ms | 0 ms | 1 ms | 1 ms |
+| Payload load | 0.02 ms | 0 ms | 0 ms | 1 ms |
+| Delete existing chunks | 0.01 ms | 0 ms | 0 ms | 1 ms |
+| Chunking | ~0 ms | 0 ms | 0 ms | 0 ms |
+| Embedding | 46.29 ms | 52 ms | 57 ms | 62 ms |
+| Chunk/vector write | 0.87 ms | 1 ms | 2 ms | 3 ms |
+| Mark READY | 0.26 ms | 0 ms | 1 ms | 1 ms |
+| addDocument total | 48.06 ms | 54 ms | 59 ms | 64 ms |
+| Worker work | 48.11 ms | 54 ms | 59 ms | 64 ms |
+
+### Comparison With Two Consumers
+
+| Metric | 2 Consumers | 4 Consumers |
+|---|---:|---:|
+| Embedding avg | 23.49 ms | 46.29 ms |
+| Embedding p50 | 24 ms | 52 ms |
+| Embedding p95 | 32 ms | 57 ms |
+| Embedding p99 | 38 ms | 62 ms |
+| Chunk DB write avg | 0.90 ms | 0.87 ms |
+| Worker avg | 25.39 ms | 48.11 ms |
+| Observed completion rate | ~63–65 docs/s | ~67 docs/s |
+
+### Observation
+
+Doubling consumer parallelism from two to four nearly doubled average
+embedding latency, from 23.49 ms to 46.29 ms.
+
+Average worker processing time increased correspondingly from 25.39 ms to
+48.11 ms.
+
+In contrast, PostgreSQL chunk-write latency remained essentially unchanged
+at approximately 0.9 ms.
+
+This explains why doubling Kafka-side parallelism produced only a small
+throughput improvement: additional consumers generated more concurrent work
+against the same shared embedding tier, increasing the latency of the
+dominant processing stage.
+
+### Conclusion
+
+The ingestion bottleneck migrated as the system was scaled.
+
+Initially, a single Kafka partition limited consumer parallelism. Increasing
+the topic to two partitions allowed two consumers to operate concurrently and
+substantially increased throughput.
+
+Increasing the system again to four partitions and four consumers did not
+produce comparable scaling. Stage profiling showed that embedding latency
+nearly doubled under the additional concurrency while database latency
+remained stable.
+
+For this local deployment and workload, the shared embedding service is now
+the dominant scaling constraint.
+
+Further ingestion scaling should therefore focus on the embedding tier rather
+than adding Kafka consumers alone.
+
+## Experiment B11 — Increasing Ollama Request Parallelism
+
+### Goal
+
+Determine whether increasing Ollama request parallelism improves ingestion
+capacity after embedding generation became the dominant worker-stage cost.
+
+### Configuration
+
+- Documents: 500
+- Producer concurrency: 4
+- Kafka partitions: 4
+- Active consumers: 4
+- `OLLAMA_NUM_PARALLEL=2`
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+- Workload: small one-chunk documents
+- Model warm before benchmark
+
+### Pipeline Results
+
+- Producer rate: 85.133 docs/s
+- Completion rate: 69.272 docs/s
+- READY: 500/500
+- FAILED: 0
+- Average end-to-end latency: 858.894 ms
+- p50: 818.510 ms
+- p95: 1710.501 ms
+- p99: 1774.493 ms
+- Max: 1830.753 ms
+
+### Stage Results
+
+| Stage | Average | p50 | p95 | p99 |
+|---|---:|---:|---:|---:|
+| Embedding | 46.24 ms | 52 ms | 60 ms | 73 ms |
+| Chunk/vector write | 1.10 ms | 1 ms | 2 ms | 6 ms |
+| addDocument total | 48.28 ms | 54 ms | 63 ms | 81 ms |
+| Worker work | 48.34 ms | 54 ms | 63 ms | 81 ms |
+
+### Comparison With B10
+
+| Metric | Parallel=1 | Parallel=2 |
+|---|---:|---:|
+| Completion rate | 67.569 docs/s | 69.272 docs/s |
+| Embedding avg | 46.29 ms | 46.24 ms |
+| Embedding p50 | 52 ms | 52 ms |
+| Embedding p95 | 57 ms | 60 ms |
+| Worker avg | 48.11 ms | 48.34 ms |
+| E2E p50 | 1694 ms | 819 ms |
+| E2E p95 | 2254 ms | 1711 ms |
+
+### Observation
+
+Increasing Ollama request parallelism from one to two did not materially
+reduce embedding service time.
+
+Average embedding latency remained approximately 46 ms and average worker
+processing time remained approximately 48 ms.
+
+Observed completion throughput increased only modestly, from approximately
+67.6 to 69.3 documents/sec.
+
+End-to-end queueing latency was lower in this run, but the producer arrival
+rate was also lower and only one trial was performed. Therefore the latency
+improvement cannot yet be attributed solely to the Ollama parallelism change.
+
+### Conclusion
+
+Increasing request parallelism within the same local embedding service did
+not materially improve the dominant embedding-stage latency or ingestion
+throughput.
+
+The results reinforce the conclusion that the embedding tier is the current
+capacity constraint for this workload.
+
+Further scaling would likely require changing the embedding architecture
+rather than simply increasing Kafka consumer count or local request
+parallelism.

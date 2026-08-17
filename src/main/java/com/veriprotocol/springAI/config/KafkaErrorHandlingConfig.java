@@ -94,6 +94,8 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
 	    // ✅ commit offsets after each record is successfully processed
 	    factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
 
+        factory.setConcurrency(4);
+
 	    return factory;
 	}
 
