@@ -333,3 +333,237 @@ PENDING-to-READY latency.
 
 Kafka allows SmartSearch to absorb these bursts without losing work,
 but buffering protects reliability rather than eliminating overload.
+
+## Experiment B5 — More Consumers Without More Partitions
+
+### Configuration
+- Documents: 500
+- Producer concurrency: 2
+- Kafka partitions: 1
+- Listener concurrency: 2
+- Consumer group: `smartsearch-workers`
+- Embedding model: `nomic-embed-text`
+
+### Results
+- Producer rate: 58.610 docs/s
+- Completion rate: 35.672 docs/s
+- READY: 500/500
+- FAILED: 0
+- Average latency: 3140.987 ms
+- p50: 3180.201 ms
+- p95: 5349.675 ms
+- p99: 5553.893 ms
+- Max: 5615.386 ms
+
+### Observation
+Increasing Spring Kafka listener concurrency from 1 to 2 did not materially
+increase completion throughput.
+
+The topic still had only one Kafka partition, so only one consumer in the
+group could actively process records from the ingest topic.
+
+### Conclusion
+Kafka partition count bounded consumer-group parallelism. Adding consumers
+without adding partitions did not move the approximately 33–37 docs/sec
+service-capacity region.
+
+## Experiment B6 — Two Partitions, Two Consumers
+
+### Configuration
+- Documents: 500
+- Producer concurrency: 2
+- Kafka partitions: 2
+- Listener concurrency: 2
+- Consumer group: `smartsearch-workers`
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+
+### Results
+- Producer rate: 57.496 docs/s
+- Completion rate: 58.089 docs/s
+- READY: 500/500
+- FAILED: 0
+- Average latency: 102.276 ms
+- p50: 54.552 ms
+- p95: 370.210 ms
+- p99: 489.586 ms
+- Max: 527.382 ms
+
+### Comparison with B5
+B5 used one partition with two consumers and completed approximately
+35.7 docs/s.
+
+B6 increased the ingest topic to two partitions while keeping two
+consumers and the same workload.
+
+Completion throughput increased to approximately 58.1 docs/s.
+
+### Conclusion
+Kafka partition count was a real throughput constraint in the original
+configuration.
+
+Adding consumers without partitions provided no useful parallelism.
+Increasing partitions allowed both consumers to process records concurrently,
+raising throughput by roughly 63%.
+
+The system is now close to the producer rate at concurrency 2, so queueing
+latency dropped dramatically.
+
+## Experiment B7 — Saturation After Consumer Scaling
+
+### Goal
+
+Determine the saturation behavior of the ingestion pipeline after increasing
+Kafka parallelism to two partitions and two active consumers.
+
+### Configuration
+
+- Documents: 500
+- Producer concurrency: 4
+- Kafka partitions: 2
+- Listener concurrency: 2
+- Consumer group: `smartsearch-workers`
+- `max.poll.records`: 1
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+- Workload: small one-chunk documents
+
+### Results
+
+- Producer rate: 99.652 docs/s
+- Completion rate: 65.265 docs/s
+- READY: 500/500
+- FAILED: 0
+- Average latency: 1409.811 ms
+- p50: 1614.198 ms
+- p95: 2485.172 ms
+- p99: 2651.209 ms
+- Max: 2720.922 ms
+
+### Comparison
+
+| Experiment | Partitions | Consumers | Producer Concurrency | Producer Rate | Completion Rate | p50 | p95 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| B5 | 1 | 2 | 2 | 58.610 docs/s | 35.672 docs/s | 3180 ms | 5350 ms |
+| B6 | 2 | 2 | 2 | 57.496 docs/s | 58.089 docs/s | 55 ms | 370 ms |
+| B7 | 2 | 2 | 4 | 99.652 docs/s | 65.265 docs/s | 1614 ms | 2485 ms |
+
+### Observation
+
+Increasing Kafka partitions from one to two allowed both configured consumers
+to process records concurrently.
+
+Under producer concurrency 2, the two-consumer pipeline completed approximately
+58.1 docs/s while receiving approximately 57.5 docs/s, so little sustained
+backlog accumulated.
+
+Increasing producer concurrency to 4 raised the arrival rate to approximately
+99.7 docs/s. Completion throughput increased only to approximately 65.3 docs/s.
+
+The difference between arrival and service rate caused queued work to
+accumulate. Median PENDING-to-READY latency increased from approximately
+55 ms in B6 to 1.61 seconds in B7, while p95 increased from approximately
+370 ms to 2.49 seconds.
+
+All 500 documents still reached READY with zero failures.
+
+### Conclusion
+
+For this local one-chunk workload, increasing Kafka parallelism from one active
+consumer to two increased observed ingestion capacity from roughly 33–37
+docs/s to roughly 58–65 docs/s.
+
+However, throughput did not scale indefinitely with producer concurrency.
+Once the arrival rate reached approximately 100 docs/s, the two-consumer
+pipeline saturated and queue waiting again became the dominant contributor
+to end-to-end ingestion latency.
+
+The results suggest that the original single-partition Kafka bottleneck has
+been removed and that the next limiting resource is somewhere downstream in
+the processing path.
+
+The next step is to measure processing time across:
+
+1. database claim/load
+2. document chunking
+3. Ollama embedding generation
+4. pgvector/database writes
+5. final status update
+
+before increasing Kafka partition or consumer counts further.
+
+## Experiment B8 — Worker Stage Profiling Under Saturation
+
+### Goal
+
+Identify the dominant processing stage after scaling Kafka ingestion to two
+partitions and two active consumers.
+
+### Configuration
+
+- Documents: 500
+- Producer concurrency: 4
+- Kafka partitions: 2
+- Active consumers: 2
+- Embedding model: `nomic-embed-text`
+- Embedding dimensions: 768
+- Workload: small one-chunk documents
+- Ollama model warm before benchmark
+
+### Pipeline Results
+
+- Producer rate: 87.252 docs/s
+- Completion rate: 62.740 docs/s
+- READY: 500/500
+- FAILED: 0
+- p50 end-to-end latency: 1719.418 ms
+- p95 end-to-end latency: 2294.514 ms
+- p99 end-to-end latency: 2351.083 ms
+
+### Stage Timing Results
+
+| Stage | Average | p50 | p95 | p99 |
+|---|---:|---:|---:|---:|
+| Lease claim | 0.30 ms | 0 ms | 1 ms | 1 ms |
+| Payload load | 0.02 ms | 0 ms | 0 ms | 1 ms |
+| Delete existing chunks | 0.02 ms | 0 ms | 0 ms | 1 ms |
+| Chunking | ~0 ms | 0 ms | 0 ms | 0 ms |
+| Embedding | 23.49 ms | 24 ms | 32 ms | 38 ms |
+| Chunk/vector write | 0.90 ms | 1 ms | 2 ms | 3 ms |
+| Mark READY | 0.31 ms | 0 ms | 1 ms | 1 ms |
+| addDocument total | 25.32 ms | 26 ms | 34 ms | 43 ms |
+| Worker work | 25.39 ms | 26 ms | 34 ms | 45 ms |
+
+### Observation
+
+Embedding generation dominated worker processing time.
+
+Average embedding latency was 23.49 ms compared with approximately
+0.90 ms for the chunk/vector database write. Embedding represented roughly
+92% of measured worker work time for this workload.
+
+Warm embedding latency under light load had previously been approximately
+18 ms. Under the saturated two-consumer workload, average embedding latency
+increased to 23.49 ms, with p95 reaching 32 ms.
+
+Database operations remained comparatively inexpensive:
+lease acquisition, payload loading, vector writes, and final status updates
+were generally around 0–1 ms on average for this local workload.
+
+### Conclusion
+
+The earlier single-partition Kafka bottleneck was successfully removed by
+increasing the topic to two partitions and allowing two consumers to process
+records concurrently.
+
+After that change, embedding generation became the dominant measured
+processing cost.
+
+The two-consumer pipeline sustained approximately 63–65 docs/sec in repeated
+saturated tests. Increasing producer concurrency beyond this capacity created
+Kafka queueing and amplified end-to-end latency rather than proportionally
+increasing throughput.
+
+The next scaling experiment should determine whether additional Kafka
+partitions and consumers improve throughput further or whether contention
+in the shared local embedding service causes diminishing returns.

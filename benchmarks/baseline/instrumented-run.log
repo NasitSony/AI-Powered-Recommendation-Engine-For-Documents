@@ -1,0 +1,350 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.veriprotocol:smartsearch:jar:0.0.1-SNAPSHOT
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: org.springframework.boot:spring-boot-starter-actuator:jar -> duplicate declaration of version (?) @ line 166, column 20
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: io.micrometer:micrometer-registry-prometheus:jar -> duplicate declaration of version (?) @ line 171, column 13
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] 
+[INFO] --------------------< com.veriprotocol:smartsearch >--------------------
+[INFO] Building SmartSearch 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.10-SNAPSHOT:run (default-cli) > test-compile @ smartsearch >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ smartsearch ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 8 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ smartsearch ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 37 source files with javac [debug parameters release 21] to target/classes
+[INFO] Annotation processing is enabled because one or more processors were found
+  on the class path. A future release of javac may disable annotation processing
+  unless at least one processor is specified by name (-processor), or a search
+  path is specified (--processor-path, --processor-module-path), or annotation
+  processing is enabled explicitly (-proc:only, -proc:full).
+  Use -Xlint:-options to suppress this message.
+  Use -proc:none to disable annotation processing.
+[INFO] /Users/nasit/Documents/SmartSearch/src/main/java/com/veriprotocol/springAI/persistence/ChunkSearchDao.java: /Users/nasit/Documents/SmartSearch/src/main/java/com/veriprotocol/springAI/persistence/ChunkSearchDao.java uses or overrides a deprecated API.
+[INFO] /Users/nasit/Documents/SmartSearch/src/main/java/com/veriprotocol/springAI/persistence/ChunkSearchDao.java: Recompile with -Xlint:deprecation for details.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ smartsearch ---
+[INFO] skip non existing resourceDirectory /Users/nasit/Documents/SmartSearch/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ smartsearch ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 2 source files with javac [debug parameters release 21] to target/test-classes
+[INFO] Annotation processing is enabled because one or more processors were found
+  on the class path. A future release of javac may disable annotation processing
+  unless at least one processor is specified by name (-processor), or a search
+  path is specified (--processor-path, --processor-module-path), or annotation
+  processing is enabled explicitly (-proc:only, -proc:full).
+  Use -Xlint:-options to suppress this message.
+  Use -proc:none to disable annotation processing.
+[INFO] 
+[INFO] <<< spring-boot:3.5.10-SNAPSHOT:run (default-cli) < test-compile @ smartsearch <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.10-SNAPSHOT:run (default-cli) @ smartsearch ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::      (v3.5.10-SNAPSHOT)
+
+18:46:02.173 INFO  [main] c.v.springAI.SmartSearchApplication docId= workerId= - Starting SmartSearchApplication using Java 21.0.12 with PID 28555 (/Users/nasit/Documents/SmartSearch/target/classes started by nasit in /Users/nasit/Documents/SmartSearch)
+18:46:02.174 DEBUG [main] c.v.springAI.SmartSearchApplication docId= workerId= - Running with Spring Boot v3.5.10-SNAPSHOT, Spring v6.2.15
+18:46:02.174 INFO  [main] c.v.springAI.SmartSearchApplication docId= workerId= - No active profile set, falling back to 1 default profile: "default"
+18:46:02.486 INFO  [main] o.s.d.r.c.RepositoryConfigurationDelegate docId= workerId= - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+18:46:02.540 INFO  [main] o.s.d.r.c.RepositoryConfigurationDelegate docId= workerId= - Finished Spring Data repository scanning in 48 ms. Found 1 JPA repository interface.
+18:46:02.776 INFO  [main] o.s.b.w.e.tomcat.TomcatWebServer docId= workerId= - Tomcat initialized with port 8080 (http)
+18:46:02.782 INFO  [main] o.a.catalina.core.StandardService docId= workerId= - Starting service [Tomcat]
+18:46:02.782 INFO  [main] o.a.catalina.core.StandardEngine docId= workerId= - Starting Servlet engine: [Apache Tomcat/10.1.50]
+18:46:02.800 INFO  [main] o.a.c.c.C.[Tomcat].[localhost].[/] docId= workerId= - Initializing Spring embedded WebApplicationContext
+18:46:02.800 INFO  [main] o.s.b.w.s.c.ServletWebServerApplicationContext docId= workerId= - Root WebApplicationContext: initialization completed in 612 ms
+18:46:02.902 INFO  [main] com.zaxxer.hikari.HikariDataSource docId= workerId= - HikariPool-1 - Starting...
+18:46:02.963 INFO  [main] com.zaxxer.hikari.pool.HikariPool docId= workerId= - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@47c81e89
+18:46:02.963 INFO  [main] com.zaxxer.hikari.HikariDataSource docId= workerId= - HikariPool-1 - Start completed.
+18:46:02.975 INFO  [main] org.flywaydb.core.FlywayExecutor docId= workerId= - Database: jdbc:postgresql://localhost:5434/smartsearch?connectTimeout=2&socketTimeout=2&loginTimeout=2 (PostgreSQL 16.15)
+18:46:02.979 INFO  [main] o.f.c.i.r.ResourceNameValidator docId= workerId= - 1 SQL migrations were detected but not run because they did not follow the filename convention.
+18:46:02.979 INFO  [main] o.f.c.i.r.ResourceNameValidator docId= workerId= - Set 'validateMigrationNaming' to true to fail fast and see a list of the invalid file names.
+18:46:03.016 INFO  [main] o.f.core.internal.command.DbValidate docId= workerId= - Successfully validated 7 migrations (execution time 00:00.012s)
+18:46:03.037 INFO  [main] o.f.core.internal.command.DbMigrate docId= workerId= - Current version of schema "public": 14
+18:46:03.038 INFO  [main] o.f.core.internal.command.DbMigrate docId= workerId= - Schema "public" is up to date. No migration necessary.
+18:46:03.063 INFO  [main] o.h.jpa.internal.util.LogHelper docId= workerId= - HHH000204: Processing PersistenceUnitInfo [name: default]
+18:46:03.088 INFO  [main] org.hibernate.Version docId= workerId= - HHH000412: Hibernate ORM core version 6.6.41.Final
+18:46:03.097 INFO  [main] o.h.c.i.RegionFactoryInitiator docId= workerId= - HHH000026: Second-level cache disabled
+18:46:03.173 INFO  [main] o.s.o.j.p.SpringPersistenceUnitInfo docId= workerId= - No LoadTimeWeaver setup: ignoring JPA class transformer
+18:46:03.177 WARN  [main] org.hibernate.orm.deprecation docId= workerId= - HHH90000021: Encountered deprecated setting [hibernate.temp.use_jdbc_metadata_defaults], use [hibernate.boot.allow_jdbc_metadata_access] instead
+18:46:03.183 WARN  [main] org.hibernate.orm.deprecation docId= workerId= - HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+18:46:03.186 INFO  [main] o.hibernate.orm.connections.pooling docId= workerId= - HHH10001005: Database info:
+	Database JDBC URL [undefined/unknown]
+	Database driver: undefined/unknown
+	Database version: 12.0
+	Autocommit mode: undefined/unknown
+	Isolation level: <unknown>
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+18:46:03.189 DEBUG [main] o.h.t.d.sql.spi.DdlTypeRegistry docId= workerId= - addDescriptor(2003, org.hibernate.type.descriptor.sql.internal.ArrayDdlTypeImpl@2ee1b017) replaced previous registration(org.hibernate.type.descriptor.sql.internal.ArrayDdlTypeImpl@7f9e6167)
+18:46:03.189 DEBUG [main] o.h.t.d.sql.spi.DdlTypeRegistry docId= workerId= - addDescriptor(6, org.hibernate.type.descriptor.sql.internal.CapacityDependentDdlType@66d69cd2) replaced previous registration(org.hibernate.type.descriptor.sql.internal.DdlTypeImpl@32e5fb4c)
+18:46:03.418 INFO  [main] o.h.e.t.j.p.i.JtaPlatformInitiator docId= workerId= - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+18:46:03.419 INFO  [main] o.s.o.j.LocalContainerEntityManagerFactoryBean docId= workerId= - Initialized JPA EntityManagerFactory for persistence unit 'default'
+18:46:03.579 INFO  [main] o.s.d.j.r.query.QueryEnhancerFactory docId= workerId= - Hibernate is in classpath; If applicable, HQL parser will be used.
+18:46:03.840 INFO  [main] c.v.springAI.core.IngestConsumer docId= workerId= - 🔥 IngestConsumer bean created
+18:46:03.842 INFO  [main] c.v.s.c.KafkaErrorHandlingConfig docId= workerId= - ✅ KafkaErrorHandlingConfig LOADED
+18:46:03.845 INFO  [main] c.v.s.c.KafkaErrorHandlingConfig docId= workerId= - ✅ Using custom DeadLetterPublishingRecoverer with FAILED-persist + metrics
+18:46:03.847 INFO  [main] c.v.s.c.KafkaErrorHandlingConfig docId= workerId= - ✅ smartsearchErrorHandler wired
+18:46:03.848 INFO  [main] c.v.s.c.KafkaErrorHandlingConfig docId= workerId= - ✅ smartsearchKafkaListenerContainerFactory created
+18:46:03.898 INFO  [main] o.s.b.w.e.tomcat.TomcatWebServer docId= workerId= - Tomcat started on port 8080 (http) with context path '/'
+18:46:03.912 INFO  [main] o.a.k.c.consumer.ConsumerConfig docId= workerId= - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-smartsearch-workers-1
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = smartsearch-workers
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+	max.partition.fetch.bytes = 52428800
+	max.poll.interval.ms = 1800000
+	max.poll.records = 1
+	metadata.max.age.ms = 300000
+	metadata.recovery.strategy = none
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 1000
+	reconnect.backoff.ms = 50
+	request.timeout.ms = 30000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.header.urlencode = false
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+
+18:46:03.928 INFO  [main] o.a.k.c.t.i.KafkaMetricsCollector docId= workerId= - initializing Kafka metrics collector
+18:46:03.977 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka version: 3.9.1
+18:46:03.977 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka commitId: f745dfdcee2b9851
+18:46:03.977 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka startTimeMs: 1786931163976
+18:46:03.983 INFO  [main] o.a.k.c.c.i.ClassicKafkaConsumer docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Subscribed to topic(s): smartsearch.ingest.v6
+18:46:03.985 INFO  [main] o.a.k.c.consumer.ConsumerConfig docId= workerId= - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-smartsearch-workers-2
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = smartsearch-workers
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+	max.partition.fetch.bytes = 52428800
+	max.poll.interval.ms = 1800000
+	max.poll.records = 1
+	metadata.max.age.ms = 300000
+	metadata.recovery.strategy = none
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 1000
+	reconnect.backoff.ms = 50
+	request.timeout.ms = 30000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.header.urlencode = false
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+
+18:46:03.985 INFO  [main] o.a.k.c.t.i.KafkaMetricsCollector docId= workerId= - initializing Kafka metrics collector
+18:46:03.987 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka version: 3.9.1
+18:46:03.987 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka commitId: f745dfdcee2b9851
+18:46:03.987 INFO  [main] o.a.kafka.common.utils.AppInfoParser docId= workerId= - Kafka startTimeMs: 1786931163987
+18:46:03.988 INFO  [main] o.a.k.c.c.i.ClassicKafkaConsumer docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Subscribed to topic(s): smartsearch.ingest.v6
+18:46:03.993 WARN  [main] o.s.b.a.o.j.JpaBaseConfiguration$JpaWebConfiguration docId= workerId= - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+18:46:04.052 INFO  [main] o.s.b.a.e.web.EndpointLinksResolver docId= workerId= - Exposing 4 endpoints beneath base path '/actuator'
+18:46:04.059 INFO  [main] c.v.springAI.SmartSearchApplication docId= workerId= - Started SmartSearchApplication in 2.01 seconds (process running for 2.117)
+18:46:04.061 INFO  [main] c.v.springAI.core.KafkaInfraCheck docId= workerId= - 🧩 Kafka listener annotation processor present? true
+18:46:04.061 INFO  [main] c.v.springAI.core.KafkaInfraCheck docId= workerId= - 🧩 Processor class: org.springframework.kafka.annotation.KafkaListenerAnnotationBeanPostProcessor
+18:46:04.062 INFO  [main] c.v.springAI.core.KafkaListenerDebug docId= workerId= - 🎧 Kafka container: id=org.springframework.kafka.KafkaListenerEndpointContainer#0 running=true groupId=smartsearch-workers topics=[smartsearch.ingest.v6]
+18:46:04.109 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] org.apache.kafka.clients.Metadata docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Cluster ID: 9RPQUxsLTR6NekGI38xVDw
+18:46:04.109 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] org.apache.kafka.clients.Metadata docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Cluster ID: 9RPQUxsLTR6NekGI38xVDw
+18:46:04.110 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+18:46:04.110 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+18:46:04.110 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] (Re-)joining group
+18:46:04.110 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] (Re-)joining group
+18:46:04.119 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Request joining group due to: need to re-join with the given member-id: consumer-smartsearch-workers-1-22046edc-a411-4a83-90fc-c9e0819508cd
+18:46:04.119 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] (Re-)joining group
+18:46:04.119 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Request joining group due to: need to re-join with the given member-id: consumer-smartsearch-workers-2-050ce7b6-5e0f-4cab-a26e-76d9afab157d
+18:46:04.119 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] (Re-)joining group
+18:46:04.122 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Successfully joined group with generation Generation{generationId=18, memberId='consumer-smartsearch-workers-2-050ce7b6-5e0f-4cab-a26e-76d9afab157d', protocol='range'}
+18:46:04.122 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Successfully joined group with generation Generation{generationId=18, memberId='consumer-smartsearch-workers-1-22046edc-a411-4a83-90fc-c9e0819508cd', protocol='range'}
+18:46:04.123 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Finished assignment for group at generation 18: {consumer-smartsearch-workers-1-22046edc-a411-4a83-90fc-c9e0819508cd=Assignment(partitions=[smartsearch.ingest.v6-0]), consumer-smartsearch-workers-2-050ce7b6-5e0f-4cab-a26e-76d9afab157d=Assignment(partitions=[smartsearch.ingest.v6-1])}
+18:46:04.126 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Successfully synced group in generation Generation{generationId=18, memberId='consumer-smartsearch-workers-1-22046edc-a411-4a83-90fc-c9e0819508cd', protocol='range'}
+18:46:04.126 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Successfully synced group in generation Generation{generationId=18, memberId='consumer-smartsearch-workers-2-050ce7b6-5e0f-4cab-a26e-76d9afab157d', protocol='range'}
+18:46:04.127 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Notifying assignor about the new Assignment(partitions=[smartsearch.ingest.v6-0])
+18:46:04.127 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerCoordinator docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Notifying assignor about the new Assignment(partitions=[smartsearch.ingest.v6-1])
+18:46:04.127 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.i.ConsumerRebalanceListenerInvoker docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-1, groupId=smartsearch-workers] Adding newly assigned partitions: smartsearch.ingest.v6-0
+18:46:04.127 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.i.ConsumerRebalanceListenerInvoker docId= workerId= - [Consumer clientId=consumer-smartsearch-workers-2, groupId=smartsearch-workers] Adding newly assigned partitions: smartsearch.ingest.v6-1
+18:46:04.130 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.a.k.c.c.internals.ConsumerUtils docId= workerId= - Setting offset for partition smartsearch.ingest.v6-0 to the committed offset FetchPosition{offset=3131, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}
+18:46:04.130 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.a.k.c.c.internals.ConsumerUtils docId= workerId= - Setting offset for partition smartsearch.ingest.v6-1 to the committed offset FetchPosition{offset=777, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}
+18:46:04.131 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-1-C-1] o.s.k.l.KafkaMessageListenerContainer docId= workerId= - smartsearch-workers: partitions assigned: [smartsearch.ingest.v6-1]
+18:46:04.131 INFO  [org.springframework.kafka.KafkaListenerEndpointContainer#0-0-C-1] o.s.k.l.KafkaMessageListenerContainer docId= workerId= - smartsearch-workers: partitions assigned: [smartsearch.ingest.v6-0]
+18:46:12.098 INFO  [http-nio-0.0.0.0-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/] docId= workerId= - Initializing Spring DispatcherServlet 'dispatcherServlet'
+18:46:12.098 INFO  [http-nio-0.0.0.0-8080-exec-1] o.s.web.servlet.DispatcherServlet docId= workerId= - Initializing Servlet 'dispatcherServlet'
+18:46:12.132 INFO  [http-nio-0.0.0.0-8080-exec-1] o.s.web.servlet.DispatcherServlet docId= workerId= - Completed initialization in 34 ms

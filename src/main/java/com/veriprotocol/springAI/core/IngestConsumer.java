@@ -100,14 +100,23 @@ public class IngestConsumer {
 
             // 2) Claim the lease (prevents double-processing on rebalance/retry)
             String workerId = workerIdentity.getWorkerId();
+
+            long leaseStart = System.nanoTime();
             boolean claimed = documentService.claimProcessingLease(docId, workerId);
+
+            long leaseMs =
+                    (System.nanoTime() - leaseStart) / 1_000_000;
             if (!claimed) {
                 log.info("⏭️ Not claimed (already processing or not pending/failed), skipping {}", docId);
                 return;
             }
 
          // 3) Load payload (text) from DB (Kafka carries only docId)
+            long loadStart = System.nanoTime();
             DocumentReadDao.DocPayload payload = documentReadDao.loadDocPayload(docId);
+            long loadMs =
+                    (System.nanoTime() - loadStart) / 1_000_000;
+
             String text = payload.text();
             
             //Throw exception in consumer
@@ -117,17 +126,30 @@ public class IngestConsumer {
             }
            
             // 4) Do the real work (chunk + embed + write chunks)
+            long workStart = System.nanoTime();
             documentService.addDocument(docId, text);
+            long workMs =
+                    (System.nanoTime() - workStart) / 1_000_000;
            
 
             // 5) Mark READY
+            long readyStart = System.nanoTime();
             documentService.markReadyDb(docId);
+            long readyMs =
+                    (System.nanoTime() - readyStart) / 1_000_000;
          // AFTER success
             dbWriteCounter.increment();
             log.info("WROTE_CHUNKS_TO_DB_SLEEPING_BEFORE_COMMIT docId={}", docId);
             long e2eMs = java.time.Duration.between(createdAt.toInstant(), java.time.Instant.now()).toMillis();
             log.info("metric=e2e_latency_ms docId={} value={} status=READY", docId, e2eMs);
-
+            log.info(
+                    "metric=consumer_stage docId={} lease_ms={} payload_load_ms={} work_ms={} mark_ready_ms={}",
+                    docId,
+                    leaseMs,
+                    loadMs,
+                    workMs,
+                    readyMs
+            );
            //CHAOS TEST: kill-before-commit (validated no duplicates)
            // Runtime.getRuntime().halt(137); // hard kill, no shutdown hooks
            // ack.acknowledge(); // ✅ commit offset ONLY after DB success

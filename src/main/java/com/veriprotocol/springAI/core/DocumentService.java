@@ -55,31 +55,58 @@ public class DocumentService{
 
     //@Transactional
     public void addDocument(String id, String text) {
-        // Optional: store whole doc row (useful metadata)
-       // String docVec = PgVector.toLiteral(embeddingModel.embed(text));
-        //docRepo.save(new DocumentEntity(id, text, Instant.now(), docVec));
 
-    	if (text == null || text.isBlank()) {
-    	    throw new IllegalArgumentException("document text is null/blank");
-    	}
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("document text is null/blank");
+        }
 
+        if (text.contains("FAILME")) {
+            throw new RuntimeException("forced failure");
+        }
 
-    	if (text.contains("FAILME")) {
-    	    throw new RuntimeException("forced failure");
-    	}
-        // Chunk + embed + store
+        long totalStart = System.nanoTime();
+
+        // 1. Delete existing chunks
+        long t0 = System.nanoTime();
         chunkWriteDao.deleteByDocId(id);
+        long deleteMs = (System.nanoTime() - t0) / 1_000_000;
 
+        // 2. Chunking
+        t0 = System.nanoTime();
         List<String> chunks = TextChunker.chunk(text, 2000);
+        long chunkingMs = (System.nanoTime() - t0) / 1_000_000;
+
         Instant now = Instant.now();
 
+        long embeddingNs = 0;
+        long dbWriteNs = 0;
+
+        // 3. Embed + write
         for (int i = 0; i < chunks.size(); i++) {
             String chunkText = chunks.get(i);
-            String vec = PgVector.toLiteral(embeddingModel.embed(chunkText));
-            chunkWriteDao.upsert(id, i, chunkText, now, vec);
-        }
-    }
 
+            long embedStart = System.nanoTime();
+            String vec = PgVector.toLiteral(embeddingModel.embed(chunkText));
+            embeddingNs += System.nanoTime() - embedStart;
+
+            long writeStart = System.nanoTime();
+            chunkWriteDao.upsert(id, i, chunkText, now, vec);
+            dbWriteNs += System.nanoTime() - writeStart;
+        }
+
+        long totalMs = (System.nanoTime() - totalStart) / 1_000_000;
+
+        log.info(
+                "metric=ingest_stage docId={} chunks={} delete_ms={} chunking_ms={} embedding_ms={} chunk_write_ms={} add_document_total_ms={}",
+                id,
+                chunks.size(),
+                deleteMs,
+                chunkingMs,
+                embeddingNs / 1_000_000,
+                dbWriteNs / 1_000_000,
+                totalMs
+        );
+    }
 
     @Transactional
     public String createPending(String requestId, String text) {
