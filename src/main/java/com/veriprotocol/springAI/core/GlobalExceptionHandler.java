@@ -2,8 +2,10 @@ package com.veriprotocol.springAI.core;
 
 import java.net.ConnectException;
 import java.sql.SQLTransientConnectionException;
+import java.util.Map;
 
 import org.springframework.core.NestedExceptionUtils;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -61,6 +63,18 @@ public class GlobalExceptionHandler {
         Throwable cur = t;
         while (cur.getCause() != null && cur.getCause() != cur) cur = cur.getCause();
         return cur;
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<?> handleIdempotencyConflict(
+            IdempotencyConflictException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "code", "IDEMPOTENCY_CONFLICT",
+                        "message", ex.getMessage()
+                ));
     }
     public record ErrorResponse(String code, String message) {}
 }

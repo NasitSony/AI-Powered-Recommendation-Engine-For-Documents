@@ -121,6 +121,16 @@ public class IngestConsumer {
 
             String text = payload.text();
 
+            /*if (text.contains("DUPLICATE_INFLIGHT_TEST")) {
+                log.warn("CHAOS_DUPLICATE_INFLIGHT_WINDOW docId={} sleeping_ms=10000", docId);
+                try {
+                    Thread.sleep(100_000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ie);
+                }
+            }*/
+
             // Hard-crash test: simulates JVM/process death after lease claim
             /*if (text.contains("CRASH_AFTER_CLAIM")) {
                 log.error("CHAOS_WORKER_HARD_CRASH docId={}", docId);

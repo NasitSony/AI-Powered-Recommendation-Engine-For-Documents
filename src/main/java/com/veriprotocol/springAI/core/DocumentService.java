@@ -109,70 +109,78 @@ public class DocumentService{
     }
 
     @Transactional
+
     public String createPending(String requestId, String text) {
-    	
-    	if (requestId == null || requestId.isBlank()) {
-            throw new IllegalArgumentException("requestId (Idempotency-Key) must not be null/blank");
+
+        if (requestId == null || requestId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "requestId (Idempotency-Key) must not be null/blank");
         }
+
         if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("text must not be null/blank");
         }
 
-    
-        String hash = org.apache.commons.codec.digest.DigestUtils.sha256Hex(text);
+        String hash =
+                org.apache.commons.codec.digest.DigestUtils.sha256Hex(text);
 
-        DocumentEntity existing = docRepo.findByRequestId(requestId).orElse(null);
-        
-        if (existing != null) {
-            return existing.getId();   // ALWAYS return doc id
+        String candidateId = java.util.UUID.randomUUID().toString();
+
+        String insertedId =
+                documentWriteDao.insertPendingIfAbsent(
+                        candidateId,
+                        requestId,
+                        text,
+                        hash
+                );
+
+        // We won the race and created the logical request.
+        if (insertedId != null) {
+
+            final String docId = insertedId;
+
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                ingestProducer.send(docId);
+                            } catch (Exception ex) {
+                                log.error(
+                                        "Kafka publish failed docId={}",
+                                        docId,
+                                        ex
+                                );
+
+                                markPublishFailed(
+                                        docId,
+                                        safeMsg(ex)
+                                );
+                            }
+                        }
+                    }
+            );
+
+            return docId;
         }
 
-        
-        String  id = java.util.UUID.randomUUID().toString();
-        
-        DocumentEntity doc = (existing != null) ? existing : new DocumentEntity(id, text);
-        doc.setRequestId(requestId);
-        doc.setText(text);
-        doc.setContentHash(hash);
-        doc.setStatus(DocumentStatus.PENDING);
-        doc.setLastError(null);
+        // Another concurrent request already created this requestId.
+        DocumentEntity existing =
+                docRepo.findByRequestId(requestId)
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "requestId conflicted but existing row was not found: "
+                                                + requestId
+                                )
+                        );
 
-        // reset reliability fields (optional, but matches your schema)
-        doc.setRetryCount(0);
-        doc.setWorkerId(null);
-        doc.setProcessingStartedAt(null);
-        doc.setNextRetryAt(null);
-
-        try {
-            docRepo.save(doc);
-        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
-            // Another thread inserted same requestId between our check and save.
-            // Fetch and return existing. No Kafka publish.
-            existing = docRepo.findByRequestId(requestId)
-                    .orElseThrow(() -> dup);
-            return existing.getId();
-        } catch (Exception e) {
-            log.error("DB save failed requestId={} docId={}", requestId, id, e);
-            throw e;
+        if (!hash.equals(existing.getContentHash())) {
+            throw new IdempotencyConflictException(
+                    "requestId already exists with different content"
+            );
         }
-        
-        
-        final String docId = doc.getId();
-        //final String contentHash = hash;
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    ingestProducer.send(docId);
-                } catch (Exception ex) {
-                    log.error("Kafka publish failed docId={}", docId, ex);
-                   markPublishFailed(docId, safeMsg(ex));
-                }
-            }
-        });
-
-        return docId;
+        return existing.getId();
     }
     private void markPublishFailed(String docId, String err) {
         docRepo.updateLastError(docId, "PUBLISH_FAILED: " + err);
@@ -188,7 +196,13 @@ public class DocumentService{
     }
 
     public void markReadyDb(String docId) {
-        documentWriteDao.markReady(docId);
+        int updated = documentWriteDao.markReady(docId);
+
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Invalid READY transition for docId=" + docId
+            );
+        }
     }
 
 

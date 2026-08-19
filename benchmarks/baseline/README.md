@@ -1222,3 +1222,283 @@ The corrected retry architecture now provides three recovery levels:
 This prevents the unbounded retry amplification observed in the original
 implementation while still allowing successful recovery after the failed
 dependency becomes available again.
+
+
+# Day 3
+
+# Day 3 — Ingestion Correctness and Idempotency
+
+## I1 — Sequential Duplicate API Submission
+
+### Goal
+
+Verify that repeated client submission using the same `requestId` does not
+create duplicate logical ingestion work.
+
+### Result
+
+The same request was submitted twice sequentially.
+
+Both requests returned the same document ID.
+
+Database verification showed:
+
+- Rows for the request ID: 1
+- Distinct document IDs: 1
+- Final status: `READY`
+- Retry count: 0
+
+### Conclusion
+
+Sequential retries using the same idempotency key converge to the same
+logical document.
+
+---
+
+## I2 — Concurrent Duplicate API Submission
+
+### Goal
+
+Verify idempotency when multiple clients submit the same request
+simultaneously.
+
+### Initial Result
+
+Ten concurrent requests raced through the original:
+
+`SELECT -> INSERT`
+
+implementation.
+
+PostgreSQL uniqueness protected the database:
+
+- Rows: 1
+- Distinct document IDs: 1
+
+However, several losing requests returned `INTERNAL_ERROR`.
+
+The database was idempotent, but the API behavior was not concurrency-safe.
+
+### Fix
+
+The creation path was changed to use an atomic PostgreSQL operation:
+
+`INSERT ... ON CONFLICT (request_id) DO NOTHING RETURNING id`
+
+Only the request that successfully inserts the row schedules the initial
+Kafka publish.
+
+Conflicting requests fetch and return the existing document ID.
+
+### Verification
+
+Ten concurrent duplicate requests were submitted again.
+
+Results:
+
+- Successful responses: 10/10
+- Same document ID returned by every request
+- Database rows: 1
+- Distinct document IDs: 1
+- Final status: `READY`
+- Retry count: 0
+- Initial Kafka consumer deliveries: 1
+
+### Conclusion
+
+PostgreSQL is now the serialization point for request idempotency.
+
+Concurrent duplicate HTTP requests converge to one durable document and one
+initial ingestion workflow.
+
+---
+
+## I3 — Idempotency-Key Payload Conflict
+
+### Goal
+
+Prevent accidental reuse of the same idempotency key for different logical
+payloads.
+
+### Previous Behavior
+
+Submitting the same `requestId` with different document text returned the
+existing document ID with HTTP 202.
+
+The second payload was silently ignored.
+
+### Fix
+
+SmartSearch now compares the SHA-256 content hash of duplicate requests.
+
+Behavior:
+
+- same `requestId` + same content -> existing document ID
+- same `requestId` + different content -> HTTP 409
+
+The conflict response contains:
+
+`IDEMPOTENCY_CONFLICT`
+
+### Verification
+
+A request was submitted successfully.
+
+A second request reused the same `requestId` with different content.
+
+Result:
+
+- HTTP status: `409 Conflict`
+- Error code: `IDEMPOTENCY_CONFLICT`
+- Original database row remained unchanged
+- Original document reached `READY`
+
+### Conclusion
+
+An idempotency key now identifies one immutable logical request rather than
+silently accepting conflicting payloads.
+
+---
+
+## I4 — Duplicate Kafka Delivery After Completion
+
+### Goal
+
+Verify that duplicate Kafka delivery after a document reaches `READY` does
+not repeat embedding or create duplicate derived data.
+
+### Experiment
+
+A document reached `READY`.
+
+A second Kafka event containing the same document ID was manually published.
+
+### Result
+
+The consumer received the duplicate event and logged:
+
+`Already READY, skipping`
+
+Chunk state before and after duplicate delivery:
+
+- Chunk 0 copies before: 1
+- Chunk 0 copies after: 1
+
+### Conclusion
+
+Duplicate Kafka delivery after successful completion is a no-op.
+
+---
+
+## I5 — Concurrent Duplicate Kafka Delivery
+
+### Goal
+
+Verify that two consumers cannot process the same logical document
+simultaneously.
+
+### Experiment
+
+The first consumer acquired the document's processing lease and was
+temporarily paused.
+
+A duplicate event containing the same document ID but a different Kafka key
+was published so that it could be routed to another partition and consumer.
+
+### Result
+
+Two different Kafka consumer threads received the document concurrently.
+
+The first consumer retained the processing lease.
+
+The second consumer attempted to claim the document and logged:
+
+`Not claimed (already processing or not pending/failed), skipping`
+
+Final state:
+
+- Status: `READY`
+- Retry count: 0
+- Chunk 0 copies: 1
+
+### Conclusion
+
+The database processing lease independently enforces at-most-one active
+processor per document, even when Kafka partition ordering is bypassed.
+
+---
+
+## I6 — State-Machine Invariants
+
+### Goal
+
+Make workflow state transitions explicit and database-guarded.
+
+The intended state machine is:
+
+`PENDING -> PROCESSING -> READY`
+
+or:
+
+`PENDING -> PROCESSING -> FAILED -> PENDING`
+
+with `PROCESSING -> FAILED` also possible after lease expiration.
+
+### Hardening
+
+`markReady` was restricted to:
+
+`PROCESSING -> READY`
+
+Retry-cycle exhaustion was restricted to:
+
+`PROCESSING -> FAILED`
+
+Invalid transitions update zero rows.
+
+### Verification
+
+#### Illegal PENDING -> READY
+
+A test document was inserted in `PENDING`.
+
+An attempted READY transition guarded by:
+
+`status = 'PROCESSING'`
+
+returned:
+
+`UPDATE 0`
+
+The document remained `PENDING`.
+
+#### Legal PENDING -> PROCESSING -> READY
+
+A normal API ingestion completed successfully.
+
+Final state:
+
+- Status: `READY`
+- Retry count: 0
+
+#### Illegal READY -> PROCESSING
+
+An attempt to claim a completed READY document returned:
+
+`UPDATE 0`
+
+The document remained `READY`.
+
+### Invariants
+
+SmartSearch now maintains the following ingestion invariants:
+
+1. An idempotency key maps to one logical request.
+2. Concurrent duplicate HTTP requests create one durable document.
+3. Reusing an idempotency key with different content is rejected.
+4. A READY document is not processed again on duplicate Kafka delivery.
+5. At most one consumer owns the processing lease for a document.
+6. PENDING documents cannot transition directly to READY.
+7. READY documents cannot transition back to PROCESSING through the normal
+   processing path.
+8. Durable retry exhaustion transitions only PROCESSING documents to FAILED.

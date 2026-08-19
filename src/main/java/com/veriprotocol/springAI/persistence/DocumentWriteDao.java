@@ -118,18 +118,50 @@ public class DocumentWriteDao {
         return !rows.isEmpty();
     }
 
-    public void markReady(String docId) {
-        jdbcTemplate.update("""
-           UPDATE documents
-           SET status = 'READY',
-              last_error = NULL,
-              next_retry_at = NULL,
-              processing_started_at = NULL,
-              worker_id = NULL,
-              updated_at = now()
-           WHERE id = ?
-          """, docId);
-   }
+    public int markReady(String docId) {
+        return jdbcTemplate.update("""
+        UPDATE documents
+        SET status = 'READY',
+            last_error = NULL,
+            next_retry_at = NULL,
+            processing_started_at = NULL,
+            worker_id = NULL,
+            updated_at = now()
+        WHERE id = ?
+          AND status = 'PROCESSING'
+        """, docId);
+    }
+
+    public String insertPendingIfAbsent(
+            String id,
+            String requestId,
+            String text,
+            String contentHash) {
+
+        var ids = jdbcTemplate.queryForList("""
+        INSERT INTO documents (
+            id,
+            request_id,
+            text,
+            content_hash,
+            status,
+            retry_count,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, 'PENDING', 0, now(), now())
+        ON CONFLICT (request_id) DO NOTHING
+        RETURNING id
+        """,
+                String.class,
+                id,
+                requestId,
+                text,
+                contentHash
+        );
+
+        return ids.isEmpty() ? null : ids.get(0);
+    }
 
 
 
@@ -240,8 +272,9 @@ public class DocumentWriteDao {
             processing_started_at = NULL,
             worker_id = NULL,
             updated_at = now()
-        WHERE id = ?
-        RETURNING retry_count
+            WHERE id = ?
+              AND status = 'PROCESSING'
+          RETURNING retry_count
         """,
                 Integer.class,
                 msg,
