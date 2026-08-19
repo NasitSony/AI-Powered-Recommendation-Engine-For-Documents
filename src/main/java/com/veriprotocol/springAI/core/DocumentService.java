@@ -213,11 +213,6 @@ public class DocumentService{
       //  documentWriteDao.updateStatus(docId, DocumentStatus.ERROR);
     //}
 
-    public void markFailedDb(String docId, String msg) {
-    	  documentWriteDao.markFailed(docId, msg);
-    	  log.error("✅ markFailed rowsUpdated={} docId={}", docId, msg);
-    }
-
     public Optional<DocumentStatusDto> getStatus(String id) {
         return documentReadDao.findStatusById(id);
     }

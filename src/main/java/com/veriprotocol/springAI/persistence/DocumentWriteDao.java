@@ -167,21 +167,6 @@ public class DocumentWriteDao {
 
 
 
-    public void markFailed(String docId, String errorMessage) {
-        String msg = truncate(errorMessage, 800); // adjust if your column allows more
-
-        // read current retry_count (or assume 0 if missing)
-        jdbcTemplate.update("""
-              UPDATE documents
-              SET status = 'FAILED',
-                  last_error = ?,
-                  next_retry_at = now() + make_interval(secs => LEAST(600, 10 * (2 ^ LEAST(retry_count, 6)))::int),
-                  processing_started_at = NULL,
-                  worker_id = NULL,
-                  updated_at = now()
-                  WHERE id = ?
-                """, msg, docId);
-    }
 
     public int markStuckProcessingAsFailed(int minutes) {
         return jdbcTemplate.update("""
@@ -231,19 +216,7 @@ public class DocumentWriteDao {
     }
 
 
-    public void incrementRetryAndRequeue(String docId) {
-    jdbcTemplate.update("""
-        UPDATE documents
-        SET retry_count = retry_count + 1,
-            status = 'PENDING',
-            next_retry_at = NULL,
-            updated_at = now()
-        WHERE id = ?
-          AND status = 'FAILED'
-          AND (next_retry_at IS NULL OR next_retry_at <= now())
-    """, docId);
-}
-    
+
     public int claimPendingForRepublish(String docId, int cooldownSeconds) {
         return jdbcTemplate.update("""
             UPDATE documents
