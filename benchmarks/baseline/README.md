@@ -1502,3 +1502,429 @@ SmartSearch now maintains the following ingestion invariants:
 7. READY documents cannot transition back to PROCESSING through the normal
    processing path.
 8. Durable retry exhaustion transitions only PROCESSING documents to FAILED.
+
+
+## Phase 3 — Ingestion Reliability Guarantees
+
+Phase 3 hardens SmartSearch ingestion around idempotency, retries, leases,
+duplicate delivery, and state-transition correctness.
+
+### Guarantees
+
+- A `requestId` identifies one logical ingestion request.
+- Sequential duplicate requests return the same document ID.
+- Concurrent duplicate requests converge through PostgreSQL atomic
+  `INSERT ... ON CONFLICT`.
+- Reusing the same `requestId` with different content returns
+  `409 IDEMPOTENCY_CONFLICT`.
+- Duplicate Kafka delivery after `READY` is a no-op.
+- At most one active consumer can own a document's processing lease.
+- Concurrent duplicate deliveries on different Kafka partitions do not result
+  in concurrent processing.
+- Worker crashes cannot leave `PROCESSING` documents stuck permanently;
+  stale leases are recovered by the reaper.
+- Replay after partial chunk writes does not create duplicate chunks because
+  chunk identity is constrained by `(doc_id, chunk_id)`.
+- Local Kafka retries remain part of one processing cycle.
+- Durable `retry_count` increments once only after a local retry cycle is
+  exhausted.
+- Automatic durable retries stop when `retry_count = 3`.
+- Retry-exhausted documents remain manually recoverable through the admin
+  retry endpoint.
+- `PROCESSING -> READY` is database-guarded.
+- Retry exhaustion can transition only `PROCESSING -> FAILED`.
+- `READY` documents cannot re-enter normal processing.
+
+### Authoritative State Transitions
+
+```text
+CREATE
+  ↓
+PENDING
+  ↓ claimProcessingLease()
+PROCESSING
+  ├── success ───────────────→ READY
+  ├── retry cycle exhausted ─→ FAILED
+  └── stale lease ───────────→ FAILED
+                                  ↓
+                         automatic/manual retry
+                                  ↓
+                               PENDING
+
+
+
+### Retry Model
+
+Kafka delivery
+    ↓
+initial attempt + local retries
+    ↓
+all local attempts exhausted
+    ↓
+FAILED
+retry_count += 1
+next_retry_at = durable backoff
+    ↓
+RetryJob
+    ↓
+PENDING + republish
+
+retry_count == 3
+    ↓
+automatic retries stop
+    ↓
+manual/operator recovery remains available
+
+Phase 3 Limitations
+Retry limits and backoff values are currently static configuration/code
+values rather than tenant/workload-specific policies.
+The stale-processing reaper uses a fixed lease timeout.
+Manual chaos experiments validated several crash boundaries; not every chaos
+scenario is yet automated as an integration test.
+Kafka and PostgreSQL are not coordinated by a distributed transaction;
+pending-document republishing is used to recover publish gaps.
+
+## S1 — Kafka Partition-Key Semantics
+
+SmartSearch publishes ingestion events using `docId` as the Kafka record key.
+
+The ingest topic currently has four partitions.
+
+A manual routing experiment published repeated events for several document
+IDs.
+
+Observed routing:
+
+- `phase4-doc-A` -> partition 1 on both deliveries
+- `phase4-doc-B` -> partition 3 on both deliveries
+- `phase4-doc-C` -> partition 2
+- `phase4-doc-D` -> partition 2
+
+### Finding
+
+Repeated events using the same document ID were consistently routed to the
+same Kafka partition.
+
+This provides per-document ordering while allowing different document IDs to
+be distributed across partitions for parallel processing.
+
+Different keys are not guaranteed to occupy different partitions; multiple
+document IDs may hash to the same partition.
+
+## S4 — Kafka Backlog Growth and Drain Recovery
+
+### Goal
+
+Verify that SmartSearch can absorb a temporary producer burst through Kafka
+without leaving a persistent ingestion backlog.
+
+The experiment intentionally submitted work faster than the active consumers
+could process it.
+
+### Setup
+
+- Kafka topic: `smartsearch.ingest.v6`
+- Partitions: 4
+- Consumer group: `smartsearch-workers`
+- Active consumers: 4
+- Workload: 1000 documents
+- Producer concurrency: 20
+
+Command:
+
+```bash
+COUNT=1000 CONCURRENCY=20 \
+./benchmarks/baseline/ingestion_async_concurrent.sh
+
+Consumer lag was sampled periodically using:
+
+docker exec smartsearch-kafka \
+  kafka-consumer-groups \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --group smartsearch-workers
+
+  Observed Backlog
+
+During the burst, one observed lag snapshot was:
+
+Partition	Lag
+0	156
+1	188
+2	170
+3	137
+Total	651
+
+
+Drain Behavior
+
+After producer pressure subsided, the same consumers continued processing the
+queued records.
+
+Observed total lag:
+
+651
+ ↓
+7
+ ↓
+0
+
+Intermediate snapshot:
+
+Partition	Lag
+0	0
+1	7
+2	0
+3	0
+Total	7
+
+Final snapshot:
+
+Partition	Lag
+0	0
+1	0
+2	0
+3	0
+Total	0
+Result
+
+Kafka absorbed the temporary ingestion burst while consumers were saturated.
+
+Once submission pressure decreased, the existing consumer group drained the
+observed backlog from at least 651 records to zero without manual intervention.
+
+Interpretation
+
+This experiment demonstrates backlog absorption and recovery, not maximum
+sustainable throughput.
+
+Kafka decouples request submission from downstream embedding/database
+processing:
+
+producer rate > processing capacity
+        ↓
+Kafka lag grows
+        ↓
+producer pressure decreases
+        ↓
+consumers continue processing
+        ↓
+lag drains to zero
+
+The experiment also shows that consumer lag is a useful operational signal for
+detecting when ingestion demand temporarily exceeds processing capacity.
+
+Conclusion
+
+SmartSearch tolerates temporary producer bursts by buffering work in Kafka and
+can recover to a zero-lag state once incoming load falls below processing
+capacity.
+
+
+
+I would **not** write “peak lag = 651” or “SmartSearch supports 1000 docs at concurrency 20” as a capacity claim. The defensible result is:
+
+
+> **Under the tested burst, we observed at least 651 queued Kafka records, and the system subsequently drained the backlog to zero without intervention.**
+
+
+That wording is accurate and interview-safe.
+
+
+## S5 — Kafka Partition Skew from a Hot Routing Key
+
+
+### Goal
+
+
+Verify how Kafka partition-key skew affects record placement when many
+independent documents use the same Kafka key.
+
+
+The objective was to demonstrate that poor key distribution can serialize
+otherwise independent work onto a single partition.
+
+
+### Setup
+
+
+- Kafka topic: `smartsearch.ingest.v6`
+- Partitions: 4
+- Consumer group: `smartsearch-workers`
+- Test documents: 200
+- Initial document state: `PENDING`
+- Kafka routing key used for every record: `phase4-hot-key-001`
+
+
+Each Kafka record contained a different document ID:
+
+
+```text
+phase4-skew-1
+phase4-skew-2
+...
+phase4-skew-200
+
+but all records used the same Kafka key:
+
+phase4-hot-key-001
+Partition Offsets Before Publishing
+Partition	Log-end offset
+0	4166
+1	1834
+2	759
+3	703
+Partition Offsets After Publishing
+Partition	Log-end offset
+0	4166
+1	1834
+2	759
+3	903
+Result
+
+Partition 3 advanced:
+
+703 -> 903
+
+an increase of exactly:
+
+200 records
+
+Partitions 0, 1, and 2 were unchanged.
+
+Therefore all 200 independent document events were routed to the same Kafka
+partition because they shared the same Kafka key.
+
+Final Document State
+
+After processing completed:
+
+Status	Count
+READY	200
+
+All 200 documents completed successfully.
+
+Interpretation
+
+Kafka provides parallelism at the partition level.
+
+Although the workload contained 200 independent documents, using the same
+routing key forced all records through one partition:
+
+200 independent documents
+        ↓
+same Kafka key
+        ↓
+partition 3 only
+        ↓
+one partition-ordered processing stream
+
+Additional consumers assigned to other partitions cannot process records
+belonging to the hot partition.
+
+This demonstrates why partition-key selection and key distribution matter for
+stream-processing scalability.
+
+Limitation
+
+This experiment proves routing skew, but it does not establish sustained
+consumer lag or quantify throughput degradation.
+
+The lag snapshot was collected after the consumer had already drained the
+200-record workload, so no non-zero hot-partition lag was captured.
+
+A larger or deliberately slowed workload is required to measure the operational
+impact of sustained partition skew.
+
+Conclusion
+
+A skewed Kafka key can concentrate independent ingestion work onto a single
+partition.
+
+In this experiment, all 200 records were routed to partition 3 while the other
+three partitions received none of the test traffic. All documents eventually
+reached READY.
+
+
+
+The key sentence to preserve is:
+
+
+> **All 200 test records landed on one partition, but this experiment does not yet prove sustained lag or throughput degradation.**
+
+
+That keeps the benchmark evidence rigorous and prevents us from overstating what S5 showed.
+
+
+
+## S6 — Sustained Hot-Partition Lag
+
+### Goal
+
+Measure the operational impact of sustained Kafka partition-key skew.
+
+### Setup
+
+- Kafka partitions: 4
+- Consumer concurrency: 4
+- Documents: 2000
+- All events used the same Kafka key
+- Documents themselves were independent
+
+### Routing Result
+
+Offsets before:
+
+| Partition | Offset |
+|---|---:|
+| 0 | 4166 |
+| 1 | 1834 |
+| 2 | 759 |
+| 3 | 903 |
+
+Offsets after:
+
+| Partition | Offset |
+|---|---:|
+| 0 | 4166 |
+| 1 | 3834 |
+| 2 | 759 |
+| 3 | 903 |
+
+Partition 1 increased by exactly 2000 records. Other partitions were unchanged.
+
+### Lag Observation
+
+An observed snapshot during processing showed:
+
+| Partition | Lag |
+|---|---:|
+| 0 | 0 |
+| 1 | 1941 |
+| 2 | 0 |
+| 3 | 0 |
+
+Partition 1 subsequently drained:
+
+`1941 -> 1795 -> 1637 -> ... -> 0`
+
+Because lag was sampled periodically, 1941 represents an observed lag of
+at least 1941 records rather than a guaranteed exact peak.
+
+### Final State
+
+- READY: 2000
+- Final Kafka lag: 0
+
+### Conclusion
+
+Kafka consumer parallelism is constrained by partition distribution.
+
+Even though four consumers were available, all test work was serialized
+through the consumer owning partition 1 because every record shared the same
+routing key.
+
+Additional idle consumers could not assist with the hot partition.
+
+
+A deliberately skewed Kafka routing key concentrated 2000 independent ingestion events onto one partition. The hot partition accumulated an observed lag of at least 1,941 records while the other three partitions remained at zero lag. Only the consumer owning the hot partition could drain that backlog, demonstrating that partition-key skew can limit effective stream-processing parallelism even when additional consumers are available. The backlog subsequently drained completely, and all 2,000 documents reached READY.

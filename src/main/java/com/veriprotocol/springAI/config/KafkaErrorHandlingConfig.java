@@ -56,10 +56,14 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
             if ("unknown".equals(docId) && v != null) {
                 docId = v.toString(); // temporary fallback until you key properly
             }
+            Throwable root = rootCause(ex);
+
             String reason =
-                (ex instanceof org.springframework.dao.DataAccessException) ? "DB_ERROR" :
-                (ex instanceof org.springframework.kafka.support.serializer.DeserializationException) ? "DESERIALIZATION_ERROR" :
-                "PROCESSING_ERROR";
+                    isDeserializationFailure(ex)
+                            ? "DESERIALIZATION_ERROR"
+                            : (root instanceof org.springframework.dao.DataAccessException)
+                            ? "DB_ERROR"
+                            : "PROCESSING_ERROR";
 
             // ✅ DLQ observability (do this BEFORE any best-effort DB update)
             metrics.onDlq();
@@ -70,25 +74,41 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
             // ✅ Persist FAILED state (best effort; don't block DLQ publishing)
             // Local Kafka retries have now been exhausted.
 // Count ONE durable retry cycle.
-            try {
-                if (record.key() != null) {
-                    int retryCount =
-                            documentService.markRetryCycleExhausted(
-                                    docId,
-                                    rootMessage(ex)
-                            );
+            // Only a normal processing failure belongs to a durable document lifecycle.
+// A malformed/deserialization record may not contain a trustworthy document ID.
+            if (!"DESERIALIZATION_ERROR".equals(reason)) {
 
-                    log.warn(
-                            "metric=retry_cycle_exhausted docId={} durableRetryCount={}",
+                try {
+                    if (record.key() != null) {
+
+                        int retryCount =
+                                documentService.markRetryCycleExhausted(
+                                        docId,
+                                        rootMessage(ex)
+                                );
+
+                        log.warn(
+                                "metric=retry_cycle_exhausted docId={} durableRetryCount={}",
+                                docId,
+                                retryCount
+                        );
+                    }
+
+                } catch (Exception e) {
+                    log.error(
+                            "Failed to persist exhausted retry cycle docId={}",
                             docId,
-                            retryCount
+                            e
                     );
                 }
-            } catch (Exception e) {
-                log.error(
-                        "Failed to persist exhausted retry cycle docId={}",
-                        docId,
-                        e
+
+            } else {
+
+                log.warn(
+                        "Skipping document-state mutation for malformed Kafka record key={} partition={} offset={}",
+                        record.key(),
+                        record.partition(),
+                        record.offset()
                 );
             }
 
@@ -180,6 +200,31 @@ public DefaultErrorHandler kafkaErrorHandler(DeadLetterPublishingRecoverer recov
 			cur = cur.getCause();
 		}
         return cur == null ? t : cur;
+    }
+
+    private static boolean isDeserializationFailure(Throwable t) {
+
+        Throwable cur = t;
+
+        while (cur != null) {
+
+            if (cur instanceof org.springframework.kafka.support.serializer.DeserializationException) {
+                return true;
+            }
+
+            if (cur instanceof org.apache.kafka.common.errors.SerializationException) {
+                return true;
+            }
+
+            // Jackson malformed JSON / payload parsing failures
+            if (cur instanceof com.fasterxml.jackson.core.JsonProcessingException) {
+                return true;
+            }
+
+            cur = cur.getCause();
+        }
+
+        return false;
     }
 
 
