@@ -22,8 +22,17 @@ public class RagService {
         this.chatModel = chatModel;
     }
 
-    public AskResponse ask(String question, int k) {
-        List<ChunkSearchDao.ChunkHit> hits = documentService.semanticSearchChunks(question, k);
+    public AskResponse ask(
+            String tenantId,
+            String question,
+            int k) {
+
+        List<ChunkSearchDao.ChunkHit> hits =
+                documentService.semanticSearchChunks(
+                        tenantId,
+                        question,
+                        k
+                );
 
         String sources = hits.stream()
                 .map(h -> "[source: " + h.docId() + "#" + h.chunkId() + "]\n" + h.chunkText())

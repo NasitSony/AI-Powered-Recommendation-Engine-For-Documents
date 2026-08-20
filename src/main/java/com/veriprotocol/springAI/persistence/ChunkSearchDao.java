@@ -17,22 +17,33 @@ public class ChunkSearchDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<ChunkHit> searchTopK(String queryVectorLiteral, int k) {
+    public List<ChunkHit> searchTopK(
+            String tenantId,
+            String queryVectorLiteral,
+            int k) {
 
         String sql = """
             SELECT doc_id, chunk_id, chunk_text,
                    (embedding <-> CAST(? AS vector)) AS dist
             FROM document_chunks
+            WHERE tenant_id = ?
             ORDER BY embedding <-> CAST(? AS vector)
             LIMIT ?
         """;
 
         return jdbcTemplate.query(
                 sql,
-                new Object[]{queryVectorLiteral, queryVectorLiteral, k},
+                new Object[]{
+                        queryVectorLiteral,
+                        tenantId,
+                        queryVectorLiteral,
+                        k
+                },
                 new RowMapper<ChunkHit>() {
                     @Override
-                    public ChunkHit mapRow(ResultSet rs, int rowNum) throws SQLException {
+                    public ChunkHit mapRow(ResultSet rs, int rowNum)
+                            throws SQLException {
+
                         return new ChunkHit(
                                 rs.getString("doc_id"),
                                 rs.getInt("chunk_id"),

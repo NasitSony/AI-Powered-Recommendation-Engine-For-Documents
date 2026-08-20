@@ -19,17 +19,27 @@ public class DocumentChunkWriteDao {
         jdbc.update("DELETE FROM document_chunks WHERE doc_id = ?", docId);
     }
 
-    public void upsert(String docId, int chunkId, String chunkText, Instant createdAt, String vectorLiteral) {
+    public void upsert( String tenantId, String docId, int chunkId, String chunkText, Instant createdAt, String vectorLiteral) {
         String sql = """
-            INSERT INTO document_chunks (doc_id, chunk_id, chunk_text, created_at, embedding)
-            VALUES (?, ?, ?, ?, CAST(? AS vector))
+            INSERT INTO document_chunks (
+                tenant_id,
+                doc_id,
+                chunk_id,
+                chunk_text,
+                created_at,
+                embedding
+            )
+            VALUES (?, ?, ?, ?, ?, CAST(? AS vector))
             ON CONFLICT (doc_id, chunk_id)
-            DO UPDATE SET chunk_text = EXCLUDED.chunk_text,
-                          created_at = EXCLUDED.created_at,
-                          embedding = EXCLUDED.embedding
-        """;
+            DO UPDATE SET
+                tenant_id = EXCLUDED.tenant_id,
+                chunk_text = EXCLUDED.chunk_text,
+                created_at = EXCLUDED.created_at,
+                embedding = EXCLUDED.embedding
+            """;
 
         jdbc.update(sql,
+                tenantId,
                 docId,
                 chunkId,
                 chunkText,

@@ -68,7 +68,11 @@ public class DocumentSearchController {
                 ));
         }
 
-        String docId = documentService.createPending(req.requestId(), req.text());
+        String docId = documentService.createPending(
+                req.tenantId(),
+                req.requestId(),
+                req.text()
+        );
         log.info("metric=ingest_accepted docId={} requestId={}", docId, req.requestId());
 
         return ResponseEntity.status(202)
@@ -76,37 +80,72 @@ public class DocumentSearchController {
     }
 
     @GetMapping("/search")
-    public List<ChunkSearchDao.ChunkHit> search(@RequestParam(name = "q") String q,
-                                                @RequestParam(name = "k", defaultValue = "3") int k) {
-        return documentService.semanticSearchChunks(q, k);
+    public List<ChunkSearchDao.ChunkHit> search(
+            @RequestParam(name = "tenantId") String tenantId,
+            @RequestParam(name = "q") String q,
+            @RequestParam(name = "k", defaultValue = "3") int k) {
+
+        return documentService.semanticSearchChunks(
+                tenantId,
+                q,
+                k
+        );
     }
 
     @GetMapping("/documents/{id}")
-    public ResponseEntity<DocumentStatusDto> status(@PathVariable("id") String id) {
-        Optional<DocumentStatusDto> status = documentService.getStatus(id);
+    public ResponseEntity<DocumentStatusDto> status(
+            @RequestParam(name = "tenantId") String tenantId,
+            @PathVariable("id") String id) {
+
+        Optional<DocumentStatusDto> status =
+                documentService.getStatus(
+                        tenantId,
+                        id
+                );
+
         return status.map(ResponseEntity::ok)
-                     .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseGet(() ->
+                        ResponseEntity.notFound().build());
     }
 
     @GetMapping("/ask")
     public RagService.AskResponse ask(
+            @RequestParam(name = "tenantId") String tenantId,
             @RequestParam(name = "q") String q,
             @RequestParam(name = "k", defaultValue = "5") int k
     ) {
-        return ragService.ask(q, k);
+        return ragService.ask(
+                tenantId,
+                q,
+                k
+        );
     }
 
     @GetMapping("/documents")
     public ResponseEntity<List<DocumentStatusDto>> list(
+            @RequestParam(name = "tenantId") String tenantId,
             @RequestParam(name = "status") String status,
             @RequestParam(name = "limit", defaultValue = "20") int limit
     ) {
-        // basic validation
+
         String s = status.toUpperCase();
-        if (!List.of("PENDING", "PROCESSING", "READY", "FAILED").contains(s)) {
+
+        if (!List.of(
+                "PENDING",
+                "PROCESSING",
+                "READY",
+                "FAILED"
+        ).contains(s)) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(documentService.listByStatus(s, limit));
+
+        return ResponseEntity.ok(
+                documentService.listByStatus(
+                        tenantId,
+                        s,
+                        limit
+                )
+        );
     }
 
 

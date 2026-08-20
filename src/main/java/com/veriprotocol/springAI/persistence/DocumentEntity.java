@@ -28,9 +28,12 @@ public class DocumentEntity {
 	@Column(name = "status", nullable = false)
 	@Enumerated(EnumType.STRING)
 	private DocumentStatus status = DocumentStatus.PENDING;
-	
-	@Column(name = "request_id", unique = true)
-	private String requestId;
+
+    @Column(name = "tenant_id", nullable = false)
+    private String tenantId;
+
+    @Column(name = "request_id")
+    private String requestId;
 
 
 	@Column(name = "content_hash", length = 64)
@@ -97,6 +100,11 @@ public class DocumentEntity {
     public DocumentStatus getStatus() { return status; }
     public String getContentHash() { return contentHash; }
     public String getLastError() { return lastError; }
+    public String getTenantId() {
+        return tenantId;
+    }
+
+
 
     /* ===== setters (only where needed) ===== */
     public void setRequestId(String requestId) { this.requestId = requestId;}
@@ -109,6 +117,9 @@ public class DocumentEntity {
     public void setWorkerId(String workerId) { this.workerId = workerId; }
     public void setProcessingStartedAt(Instant t) { this.processingStartedAt = t; }
     public void setNextRetryAt(Instant t) { this.nextRetryAt = t; }
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
+    }
 
 
 

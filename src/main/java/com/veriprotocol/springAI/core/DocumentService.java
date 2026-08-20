@@ -54,7 +54,7 @@ public class DocumentService{
     }
 
     //@Transactional
-    public void addDocument(String id, String text) {
+    public void addDocument(String tenantId, String id, String text) {
 
         if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("document text is null/blank");
@@ -90,7 +90,7 @@ public class DocumentService{
             embeddingNs += System.nanoTime() - embedStart;
 
             long writeStart = System.nanoTime();
-            chunkWriteDao.upsert(id, i, chunkText, now, vec);
+            chunkWriteDao.upsert(tenantId, id, i, chunkText, now, vec);
             dbWriteNs += System.nanoTime() - writeStart;
         }
 
@@ -110,7 +110,14 @@ public class DocumentService{
 
     @Transactional
 
-    public String createPending(String requestId, String text) {
+    public String createPending(
+            String tenantId,
+            String requestId,
+            String text) {
+
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId must not be null/blank");
+        }
 
         if (requestId == null || requestId.isBlank()) {
             throw new IllegalArgumentException(
@@ -129,6 +136,7 @@ public class DocumentService{
         String insertedId =
                 documentWriteDao.insertPendingIfAbsent(
                         candidateId,
+                        tenantId,
                         requestId,
                         text,
                         hash
@@ -166,8 +174,10 @@ public class DocumentService{
 
         // Another concurrent request already created this requestId.
         DocumentEntity existing =
-                docRepo.findByRequestId(requestId)
-                        .orElseThrow(() ->
+                docRepo.findByTenantIdAndRequestId(
+                                tenantId,
+                                requestId
+                        ).orElseThrow(() ->
                                 new IllegalStateException(
                                         "requestId conflicted but existing row was not found: "
                                                 + requestId
@@ -176,7 +186,8 @@ public class DocumentService{
 
         if (!hash.equals(existing.getContentHash())) {
             throw new IdempotencyConflictException(
-                    "requestId already exists with different content"
+                    "requestId already exists with different content for tenantId="
+                            + tenantId
             );
         }
 
@@ -186,9 +197,20 @@ public class DocumentService{
         docRepo.updateLastError(docId, "PUBLISH_FAILED: " + err);
     }
 
-    public List<ChunkSearchDao.ChunkHit> semanticSearchChunks(String query, int k) {
-        String qVec = PgVector.toLiteral(embeddingModel.embed(query));
-        return chunkSearchDao.searchTopK(qVec, k);
+    public List<ChunkSearchDao.ChunkHit> semanticSearchChunks(
+            String tenantId,
+            String query,
+            int k) {
+
+        String qVec = PgVector.toLiteral(
+                embeddingModel.embed(query)
+        );
+
+        return chunkSearchDao.searchTopK(
+                tenantId,
+                qVec,
+                k
+        );
     }
 
     public boolean claimProcessingLease(String docId, String workerId) {
@@ -213,12 +235,26 @@ public class DocumentService{
       //  documentWriteDao.updateStatus(docId, DocumentStatus.ERROR);
     //}
 
-    public Optional<DocumentStatusDto> getStatus(String id) {
-        return documentReadDao.findStatusById(id);
+    public Optional<DocumentStatusDto> getStatus(
+            String tenantId,
+            String id) {
+
+        return documentReadDao.findStatusByTenantAndId(
+                tenantId,
+                id
+        );
     }
 
-    public List<DocumentStatusDto> listByStatus(String status, int limit) {
-        return documentReadDao.listByStatus(status, limit);
+    public List<DocumentStatusDto> listByStatus(
+            String tenantId,
+            String status,
+            int limit) {
+
+        return documentReadDao.listByTenantAndStatus(
+                tenantId,
+                status,
+                limit
+        );
     }
 
     private static String safeMsg(Throwable t) {

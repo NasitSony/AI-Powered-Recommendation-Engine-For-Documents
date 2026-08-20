@@ -2,6 +2,7 @@ package com.veriprotocol.springAI.persistence;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -134,27 +135,30 @@ public class DocumentWriteDao {
 
     public String insertPendingIfAbsent(
             String id,
+            String tenantId,
             String requestId,
             String text,
             String contentHash) {
 
         var ids = jdbcTemplate.queryForList("""
-        INSERT INTO documents (
-            id,
-            request_id,
-            text,
-            content_hash,
-            status,
-            retry_count,
-            created_at,
-            updated_at
-        )
-        VALUES (?, ?, ?, ?, 'PENDING', 0, now(), now())
-        ON CONFLICT (request_id) DO NOTHING
-        RETURNING id
-        """,
+    INSERT INTO documents (
+        id,
+        tenant_id,
+        request_id,
+        text,
+        content_hash,
+        status,
+        retry_count,
+        created_at,
+        updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, 'PENDING', 0, now(), now())
+    ON CONFLICT (tenant_id, request_id) DO NOTHING
+    RETURNING id
+    """,
                 String.class,
                 id,
+                tenantId,
                 requestId,
                 text,
                 contentHash
@@ -201,32 +205,68 @@ public class DocumentWriteDao {
     }
 
 
-    public int forceToPending(String docId) {
+    public int forceToPending(
+            String tenantId,
+            String docId) {
+
         return jdbcTemplate.update("""
-            UPDATE documents
-            SET status = 'PENDING',
-                last_error = NULL,
-                processing_started_at = NULL,
-                worker_id = NULL,
-                next_retry_at = NULL,
-                updated_at = now()
-            WHERE id = ?
-              AND status IN ('FAILED')
-        """, docId);
+        UPDATE documents
+        SET status = 'PENDING',
+            last_error = NULL,
+            processing_started_at = NULL,
+            worker_id = NULL,
+            next_retry_at = NULL,
+            updated_at = now()
+        WHERE tenant_id = ?
+          AND id = ?
+          AND status = 'FAILED'
+        """,
+                tenantId,
+                docId
+        );
     }
 
+    public int claimPendingForRepublish(
+            String tenantId,
+            String docId,
+            int cooldownSeconds) {
 
-
-    public int claimPendingForRepublish(String docId, int cooldownSeconds) {
         return jdbcTemplate.update("""
-            UPDATE documents
-            SET updated_at = now()
-            WHERE id = ?
-              AND status = 'PENDING'
-              AND updated_at <= now() - (? || ' seconds')::interval
-        """, docId, cooldownSeconds);
+        UPDATE documents
+        SET updated_at = now()
+        WHERE tenant_id = ?
+          AND id = ?
+          AND status = 'PENDING'
+          AND updated_at <= now() - (? || ' seconds')::interval
+        """,
+                tenantId,
+                docId,
+                cooldownSeconds
+        );
     }
 
+    public List<String> findOldPendingDocIdsForTenant(
+            String tenantId,
+            int limit,
+            int minAgeSeconds) {
+
+        return jdbcTemplate.queryForList("""
+        SELECT id
+        FROM documents
+        WHERE tenant_id = ?
+          AND status = 'PENDING'
+          AND updated_at <= now() - (? || ' seconds')::interval
+        ORDER BY updated_at ASC
+        LIMIT ?
+        """,
+                String.class,
+                tenantId,
+                minAgeSeconds,
+                limit
+        );
+    }
+
+    
     public int markRetryCycleExhausted(String docId, String errorMessage) {
         String msg = truncate(errorMessage, 800);
 

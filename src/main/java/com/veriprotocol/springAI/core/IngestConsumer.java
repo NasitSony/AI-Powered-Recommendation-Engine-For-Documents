@@ -121,6 +121,8 @@ public class IngestConsumer {
 
             String text = payload.text();
 
+            String tenantId = payload.tenantId();
+
             /*if (text.contains("DUPLICATE_INFLIGHT_TEST")) {
                 log.warn("CHAOS_DUPLICATE_INFLIGHT_WINDOW docId={} sleeping_ms=10000", docId);
                 try {
@@ -155,7 +157,11 @@ public class IngestConsumer {
            
             // 4) Do the real work (chunk + embed + write chunks)
             long workStart = System.nanoTime();
-            documentService.addDocument(docId, text);
+            documentService.addDocument(
+                    tenantId,
+                    docId,
+                    text
+            );
 
             /*if (text.contains("CRASH_AFTER_WRITE")) {
                 log.error("CHAOS_CRASH_AFTER_WRITE docId={}", docId);

@@ -26,42 +26,66 @@ public class AdminController {
     private final IngestProducer ingestProducer;
 
     @PostMapping("/retry/{id}")
-    public ResponseEntity<DocumentStatusDto> retry(@PathVariable("id") String id) {
+    public ResponseEntity<DocumentStatusDto> retry(
+            @RequestParam(name = "tenantId") String tenantId,
+            @PathVariable("id") String id) {
 
-        // exists?
-        var existing = documentReadDao.findStatusById(id);
+        var existing =
+                documentReadDao.findStatusByTenantAndId(
+                        tenantId,
+                        id
+                );
+
         if (existing.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
-        // only retry if we actually moved it to PENDING
-        int updated = documentWriteDao.forceToPending(id);
+        int updated =
+                documentWriteDao.forceToPending(
+                        tenantId,
+                        id
+                );
+
         if (updated == 1) {
             ingestProducer.sendRetry(id);
         }
 
-        // return current status after attempt
-        return documentReadDao.findStatusById(id)
+        return documentReadDao
+                .findStatusByTenantAndId(tenantId, id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
-    
-    @PostMapping("/republish-pending")
-    public ResponseEntity<?> republishPending(@RequestParam(defaultValue = "50") int limit) {
 
-        //List<String> ids = documentReadDao.findPendingDocIds(limit);
+    @PostMapping("/republish-pending")
+    public ResponseEntity<?> republishPending(
+            @RequestParam(name = "tenantId") String tenantId,
+            @RequestParam(defaultValue = "50") int limit) {
 
         int republished = 0;
-        List<String> ids = documentReadDao.findOldPendingDocIds(limit, 3600);
+
+        List<String> ids =
+                documentReadDao.findOldPendingDocIdsForTenant(
+                        tenantId,
+                        limit,
+                        3600
+                );
+
         for (String id : ids) {
-            // claim is optional now, but still good for concurrency safety
-            if (documentWriteDao.claimPendingForRepublish(id, 3600) == 1) {
+
+            if (documentWriteDao.claimPendingForRepublish(
+                    tenantId,
+                    id,
+                    3600
+            ) == 1) {
+
                 ingestProducer.sendRetry(id);
+                republished++;
             }
         }
 
-
-        return ResponseEntity.ok(new RepublishResponse(republished, ids));
+        return ResponseEntity.ok(
+                new RepublishResponse(republished, ids)
+        );
     }
 
     record RepublishResponse(int republished, List<String> docIds) {}

@@ -38,7 +38,29 @@ public class DocumentReadDao {
         }
     };
 
+
+    // Internal worker lookup.
+// Safe because document IDs are globally unique and this is not user-facing.
     public Optional<DocumentStatusDto> findStatusById(String id) {
+
+        var list = jdbcTemplate.query("""
+        SELECT id, status,
+               COALESCE(retry_count, 0) AS retry_count,
+               created_at, updated_at,
+               last_error, worker_id,
+               processing_started_at, next_retry_at
+        FROM documents
+        WHERE id = ?
+        """,
+                MAPPER,
+                id
+        );
+
+        return list.stream().findFirst();
+    }
+    public Optional<DocumentStatusDto> findStatusByTenantAndId(
+            String tenantId,
+            String id) {
         var list = jdbcTemplate.query("""
             SELECT id, status,
                    COALESCE(retry_count, 0) AS retry_count,
@@ -46,8 +68,13 @@ public class DocumentReadDao {
                    last_error, worker_id,
                    processing_started_at, next_retry_at
             FROM documents
-            WHERE id = ?
-        """, MAPPER, id);
+            WHERE tenant_id = ?
+              AND id = ?
+            """,
+                        MAPPER,
+                        tenantId,
+                        id
+                );
 
         return list.stream().findFirst();
     }
@@ -77,22 +104,49 @@ public class DocumentReadDao {
         """, docId);
     }
 
-    public record DocPayload(String id, String text, String contentHash) {}
+    public record DocPayload(String id, String tenantId, String text, String contentHash) {}
 
     public DocPayload loadDocPayload(String id) {
         return jdbcTemplate.queryForObject("""
-            SELECT id, text, content_hash
-            FROM documents
-            WHERE id = ?
+            SELECT id, tenant_id, text, content_hash
+                        FROM documents
+                        WHERE id = ?
         """, (rs, rowNum) -> new DocPayload(
                 rs.getString("id"),
+                rs.getString("tenant_id"),
                 rs.getString("text"),
                 rs.getString("content_hash")
         ), id);
     }
 
-    public List<DocumentStatusDto> listByStatus(String status, int limit) {
-    	int safeLimit = Math.max(1, Math.min(limit, 200));
+    public List<String> findOldPendingDocIdsForTenant(
+            String tenantId,
+            int limit,
+            int minAgeSeconds) {
+
+        return jdbcTemplate.queryForList("""
+        SELECT id
+        FROM documents
+        WHERE tenant_id = ?
+          AND status = 'PENDING'
+          AND updated_at <= now() - (? || ' seconds')::interval
+        ORDER BY updated_at ASC
+        LIMIT ?
+        """,
+                String.class,
+                tenantId,
+                minAgeSeconds,
+                limit
+        );
+    }
+
+    public List<DocumentStatusDto> listByTenantAndStatus(
+            String tenantId,
+            String status,
+            int limit) {
+    	
+
+        int safeLimit = Math.max(1, Math.min(limit, 200));
 
         String sql = """
             SELECT id, status,
@@ -101,12 +155,18 @@ public class DocumentReadDao {
                    last_error, worker_id,
                    processing_started_at, next_retry_at
             FROM documents
-            WHERE status = ?
+            WHERE tenant_id = ?
+              AND status = ?
             ORDER BY updated_at DESC
             LIMIT %d
             """.formatted(safeLimit);
 
-        return jdbcTemplate.query(sql, MAPPER, status);
+                return jdbcTemplate.query(
+                        sql,
+                        MAPPER,
+                        tenantId,
+                        status
+                );
     }
 
     public int countByStatus(String status) {

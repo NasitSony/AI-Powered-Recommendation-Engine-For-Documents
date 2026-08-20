@@ -1928,3 +1928,50 @@ Additional idle consumers could not assist with the hot partition.
 
 
 A deliberately skewed Kafka routing key concentrated 2000 independent ingestion events onto one partition. The hot partition accumulated an observed lag of at least 1,941 records while the other three partitions remained at zero lag. Only the consumer owning the hot partition could drain that backlog, demonstrating that partition-key skew can limit effective stream-processing parallelism even when additional consumers are available. The backlog subsequently drained completely, and all 2,000 documents reached READY.
+
+nasit@mac SmartSearch % git status
+git diff --stat
+On branch phase5-multitenancy
+Your branch is up to date with 'origin/phase5-multitenancy'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   benchmarks/baseline/instrumented-b11.log
+	modified:   src/main/java/com/veriprotocol/springAI/.DS_Store
+	modified:   src/main/java/com/veriprotocol/springAI/controller/api/AdminController.java
+	modified:   src/main/java/com/veriprotocol/springAI/controller/api/DocumentSearchController.java
+	modified:   src/main/java/com/veriprotocol/springAI/controller/api/dto/DocumentRequest.java
+	modified:   src/main/java/com/veriprotocol/springAI/core/DocumentService.java
+	modified:   src/main/java/com/veriprotocol/springAI/core/EmbeddingService.java
+	modified:   src/main/java/com/veriprotocol/springAI/core/IngestConsumer.java
+	modified:   src/main/java/com/veriprotocol/springAI/core/RagService.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/ChunkSearchDao.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/DocumentChunkWriteDao.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/DocumentEntity.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/DocumentReadDao.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/DocumentRepository.java
+	modified:   src/main/java/com/veriprotocol/springAI/persistence/DocumentWriteDao.java
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	src/main/resources/db/migration/V15__add_tenant_id.sql
+
+no changes added to commit (use "git add" and/or "git commit -a")
+ benchmarks/baseline/instrumented-b11.log                                             | 6756 +----------------------------------------
+ src/main/java/com/veriprotocol/springAI/.DS_Store                                    |  Bin 6148 -> 8196 bytes
+ src/main/java/com/veriprotocol/springAI/controller/api/AdminController.java          |   56 +-
+ src/main/java/com/veriprotocol/springAI/controller/api/DocumentSearchController.java |   61 +-
+ src/main/java/com/veriprotocol/springAI/controller/api/dto/DocumentRequest.java      |    7 +-
+ src/main/java/com/veriprotocol/springAI/core/DocumentService.java                    |   62 +-
+ src/main/java/com/veriprotocol/springAI/core/EmbeddingService.java                   |   73 +-
+ src/main/java/com/veriprotocol/springAI/core/IngestConsumer.java                     |    8 +-
+ src/main/java/com/veriprotocol/springAI/core/RagService.java                         |   13 +-
+ src/main/java/com/veriprotocol/springAI/persistence/ChunkSearchDao.java              |   17 +-
+ src/main/java/com/veriprotocol/springAI/persistence/DocumentChunkWriteDao.java       |   24 +-
+ src/main/java/com/veriprotocol/springAI/persistence/DocumentEntity.java              |   17 +-
+ src/main/java/com/veriprotocol/springAI/persistence/DocumentReadDao.java             |   80 +-
+ src/main/java/com/veriprotocol/springAI/persistence/DocumentRepository.java          |    5 +-
+ src/main/java/com/veriprotocol/springAI/persistence/DocumentWriteDao.java            |  106 +-
+ 15 files changed, 497 insertions(+), 6788 deletions(-)
+nasit@mac SmartSearch % 

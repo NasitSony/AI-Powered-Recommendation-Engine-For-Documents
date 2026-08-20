@@ -15,7 +15,10 @@ import jakarta.transaction.Transactional;
 public interface DocumentRepository extends JpaRepository<DocumentEntity, String> {
 	
 	// ✅ ADD THIS
-    Optional<DocumentEntity> findByRequestId(String requestId);
+    Optional<DocumentEntity> findByTenantIdAndRequestId(
+            String tenantId,
+            String requestId
+    );
 	
 	@Modifying
     @Transactional
