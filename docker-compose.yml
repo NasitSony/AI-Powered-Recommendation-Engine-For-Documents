@@ -1,7 +1,7 @@
 services:
-  postgres:
+  postgres-shard-0:
     image: pgvector/pgvector:pg16
-    container_name: smartsearch-postgres
+    container_name: smartsearch-postgres-shard-0
     environment:
       POSTGRES_DB: smartsearch
       POSTGRES_USER: smartsearch
@@ -9,7 +9,21 @@ services:
     ports:
       - "5434:5432"
     volumes:
-      - smartsearch_pgdata:/var/lib/postgresql/data
+      - smartsearch_pgdata_shard_0:/var/lib/postgresql/data
+    mem_limit: 768m
+    cpus: 1.0
+
+  postgres-shard-1:
+    image: pgvector/pgvector:pg16
+    container_name: smartsearch-postgres-shard-1
+    environment:
+      POSTGRES_DB: smartsearch
+      POSTGRES_USER: smartsearch
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5435:5432"
+    volumes:
+      - smartsearch_pgdata_shard_1:/var/lib/postgresql/data
     mem_limit: 768m
     cpus: 1.0
   app:
@@ -106,6 +120,6 @@ services:
     cpus: 0.5
 
 volumes:
-  smartsearch_pgdata:
-  grafana-data:	
-version: '3.8'
+  smartsearch_pgdata_shard_0:
+  smartsearch_pgdata_shard_1:
+  grafana-data:
