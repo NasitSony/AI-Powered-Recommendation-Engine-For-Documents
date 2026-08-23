@@ -11,14 +11,20 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import com.veriprotocol.springAI.controller.api.dto.DocumentStatusDto;
+import com.veriprotocol.springAI.sharding.ShardJdbcRouter;
 
 @Repository
 public class DocumentReadDao {
 
     private final JdbcTemplate jdbcTemplate;
+    private final ShardJdbcRouter shardJdbcRouter;
 
-    public DocumentReadDao(JdbcTemplate jdbcTemplate) {
+    public DocumentReadDao(
+            JdbcTemplate jdbcTemplate,
+            ShardJdbcRouter shardJdbcRouter) {
+
         this.jdbcTemplate = jdbcTemplate;
+        this.shardJdbcRouter = shardJdbcRouter;
     }
 
     private static final RowMapper<DocumentStatusDto> MAPPER = new RowMapper<>() {
@@ -61,35 +67,53 @@ public class DocumentReadDao {
     public Optional<DocumentStatusDto> findStatusByTenantAndId(
             String tenantId,
             String id) {
-        var list = jdbcTemplate.query("""
-            SELECT id, status,
-                   COALESCE(retry_count, 0) AS retry_count,
-                   created_at, updated_at,
-                   last_error, worker_id,
-                   processing_started_at, next_retry_at
-            FROM documents
-            WHERE tenant_id = ?
-              AND id = ?
-            """,
-                        MAPPER,
-                        tenantId,
-                        id
-                );
+
+        JdbcTemplate jdbc =
+                shardJdbcRouter.jdbcFor(tenantId);
+
+        var list = jdbc.query("""
+        SELECT id, status,
+               COALESCE(retry_count, 0) AS retry_count,
+               created_at, updated_at,
+               last_error, worker_id,
+               processing_started_at, next_retry_at
+        FROM documents
+        WHERE tenant_id = ?
+          AND id = ?
+        """,
+                MAPPER,
+                tenantId,
+                id
+        );
 
         return list.stream().findFirst();
     }
 
-    public List<String> findRetryableFailedDocIds(int limit, int maxRetries) {
-        return jdbcTemplate.queryForList("""
-            SELECT id
-            FROM documents
-            WHERE status = 'FAILED'
-              AND retry_count < ?
-              AND (next_retry_at IS NULL OR next_retry_at <= now())
-            ORDER BY updated_at ASC
-            LIMIT ?
-        """, String.class, maxRetries, limit);
+    public List<RetryableDoc> findRetryableFailedDocs(
+            int limit,
+            int maxRetries) {
+
+        return jdbcTemplate.query("""
+        SELECT tenant_id, id
+        FROM documents
+        WHERE status = 'FAILED'
+          AND retry_count < ?
+          AND (next_retry_at IS NULL OR next_retry_at <= now())
+        ORDER BY updated_at ASC
+        LIMIT ?
+        """,
+                (rs, rowNum) -> new RetryableDoc(
+                        rs.getString("tenant_id"),
+                        rs.getString("id")
+                ),
+                maxRetries,
+                limit
+        );
     }
+    public record RetryableDoc(
+            String tenantId,
+            String docId
+    ) {}
 
     public int resetFailedToPending(String docId) {
         return jdbcTemplate.update("""
@@ -144,29 +168,32 @@ public class DocumentReadDao {
             String tenantId,
             String status,
             int limit) {
-    	
 
-        int safeLimit = Math.max(1, Math.min(limit, 200));
+        JdbcTemplate jdbc =
+                shardJdbcRouter.jdbcFor(tenantId);
+
+        int safeLimit =
+                Math.max(1, Math.min(limit, 200));
 
         String sql = """
-            SELECT id, status,
-                   COALESCE(retry_count, 0) AS retry_count,
-                   created_at, updated_at,
-                   last_error, worker_id,
-                   processing_started_at, next_retry_at
-            FROM documents
-            WHERE tenant_id = ?
-              AND status = ?
-            ORDER BY updated_at DESC
-            LIMIT %d
-            """.formatted(safeLimit);
+        SELECT id, status,
+               COALESCE(retry_count, 0) AS retry_count,
+               created_at, updated_at,
+               last_error, worker_id,
+               processing_started_at, next_retry_at
+        FROM documents
+        WHERE tenant_id = ?
+          AND status = ?
+        ORDER BY updated_at DESC
+        LIMIT %d
+        """.formatted(safeLimit);
 
-                return jdbcTemplate.query(
-                        sql,
-                        MAPPER,
-                        tenantId,
-                        status
-                );
+        return jdbc.query(
+                sql,
+                MAPPER,
+                tenantId,
+                status
+        );
     }
 
     public int countByStatus(String status) {

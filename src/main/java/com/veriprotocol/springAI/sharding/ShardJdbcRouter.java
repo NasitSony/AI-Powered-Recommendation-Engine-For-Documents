@@ -28,4 +28,12 @@ public class ShardJdbcRouter {
             default -> throw new IllegalStateException("Unexpected shard");
         };
     }
+
+    public JdbcTemplate shard0() {
+        return shard0;
+    }
+
+    public JdbcTemplate shard1() {
+        return shard1;
+    }
 }

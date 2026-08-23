@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.veriprotocol.springAI.sharding.ShardedIngestDao;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import com.veriprotocol.springAI.persistence.DocumentRepository;
 import com.veriprotocol.springAI.persistence.DocumentStatus;
 import com.veriprotocol.springAI.persistence.DocumentWriteDao;
 import com.veriprotocol.springAI.persistence.PgVector;
+import com.veriprotocol.springAI.sharding.ShardedDocumentWriteDao;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,6 +36,8 @@ public class DocumentService{
     private final IngestProducer ingestProducer;
     private final DocumentWriteDao documentWriteDao;
     private final DocumentReadDao documentReadDao;
+    private final ShardedDocumentWriteDao shardedDocumentWriteDao;
+    private final ShardedIngestDao shardedIngestDao;
 
 
 
@@ -43,7 +47,7 @@ public class DocumentService{
             DocumentChunkWriteDao chunkWriteDao,
             ChunkSearchDao chunkSearchDao,
             IngestProducer ingestProducer,
-            DocumentWriteDao documentWriteDao, DocumentReadDao documentReadDao) {
+            DocumentWriteDao documentWriteDao, DocumentReadDao documentReadDao, ShardedDocumentWriteDao shardedDocumentWriteDao, ShardedIngestDao shardedIngestDao) {
             this.embeddingModel = embeddingModel;
             this.docRepo = docRepo;
             this.chunkWriteDao = chunkWriteDao;
@@ -51,6 +55,8 @@ public class DocumentService{
             this.ingestProducer = ingestProducer;
             this.documentWriteDao = documentWriteDao;
             this.documentReadDao = documentReadDao;
+            this.shardedDocumentWriteDao = shardedDocumentWriteDao;
+            this.shardedIngestDao = shardedIngestDao;
     }
 
     //@Transactional
@@ -68,7 +74,7 @@ public class DocumentService{
 
         // 1. Delete existing chunks
         long t0 = System.nanoTime();
-        chunkWriteDao.deleteByDocId(id);
+        chunkWriteDao.deleteByDocId(tenantId, id);
         long deleteMs = (System.nanoTime() - t0) / 1_000_000;
 
         // 2. Chunking
@@ -108,6 +114,58 @@ public class DocumentService{
         );
     }
 
+    public Optional<DocumentStatusDto> getStatusInternal(
+            String tenantId,
+            String docId) {
+
+        return shardedIngestDao.findStatus(
+                tenantId,
+                docId
+        );
+    }
+
+    public boolean claimProcessingLease(
+            String tenantId,
+            String docId,
+            String workerId) {
+
+        return shardedIngestDao.claimProcessingLease(
+                tenantId,
+                docId,
+                workerId
+        );
+    }
+
+    public DocumentReadDao.DocPayload loadDocPayload(
+            String tenantId,
+            String docId) {
+
+        return shardedIngestDao.loadDocPayload(
+                tenantId,
+                docId
+        );
+    }
+
+    public void markReadyDb(
+            String tenantId,
+            String docId) {
+
+        int updated =
+                shardedIngestDao.markReady(
+                        tenantId,
+                        docId
+                );
+
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Invalid READY transition tenantId="
+                            + tenantId
+                            + " docId="
+                            + docId
+            );
+        }
+    }
+
     @Transactional
 
     public String createPending(
@@ -134,7 +192,7 @@ public class DocumentService{
         String candidateId = java.util.UUID.randomUUID().toString();
 
         String insertedId =
-                documentWriteDao.insertPendingIfAbsent(
+                shardedDocumentWriteDao.insertPendingIfAbsent(
                         candidateId,
                         tenantId,
                         requestId,
@@ -152,7 +210,7 @@ public class DocumentService{
                         @Override
                         public void afterCommit() {
                             try {
-                                ingestProducer.send(docId);
+                                ingestProducer.send(tenantId, docId);
                             } catch (Exception ex) {
                                 log.error(
                                         "Kafka publish failed docId={}",
@@ -173,25 +231,28 @@ public class DocumentService{
         }
 
         // Another concurrent request already created this requestId.
-        DocumentEntity existing =
-                docRepo.findByTenantIdAndRequestId(
+
+                ShardedDocumentWriteDao.ExistingDocument existing =
+                shardedDocumentWriteDao
+                        .findByTenantAndRequestId(
                                 tenantId,
                                 requestId
-                        ).orElseThrow(() ->
+                        )
+                        .orElseThrow(() ->
                                 new IllegalStateException(
                                         "requestId conflicted but existing row was not found: "
                                                 + requestId
                                 )
                         );
 
-        if (!hash.equals(existing.getContentHash())) {
+        if (!hash.equals(existing.contentHash())) {
             throw new IdempotencyConflictException(
                     "requestId already exists with different content for tenantId="
                             + tenantId
             );
         }
 
-        return existing.getId();
+        return existing.id();
     }
     private void markPublishFailed(String docId, String err) {
         docRepo.updateLastError(docId, "PUBLISH_FAILED: " + err);
@@ -228,8 +289,16 @@ public class DocumentService{
     }
 
 
-    public int markRetryCycleExhausted(String docId, String msg) {
-        return documentWriteDao.markRetryCycleExhausted(docId, msg);
+    public int markRetryCycleExhausted(
+            String tenantId,
+            String docId,
+            String msg) {
+
+        return documentWriteDao.markRetryCycleExhausted(
+                tenantId,
+                docId,
+                msg
+        );
     }
    // public void markError(String docId, String msg) {
       //  documentWriteDao.updateStatus(docId, DocumentStatus.ERROR);

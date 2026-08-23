@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import com.veriprotocol.springAI.persistence.DocumentReadDao;
 import com.veriprotocol.springAI.persistence.DocumentWriteDao;
 
+import com.veriprotocol.springAI.sharding.ShardedRetryDao;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,8 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RetryJob {
 
-    private final DocumentReadDao documentReadDao;
-    private final DocumentWriteDao documentWriteDao;
+    private final ShardedRetryDao shardedRetryDao;
     private final IngestProducer ingestProducer;
 
     // tune these later
@@ -28,29 +29,57 @@ public class RetryJob {
     @Scheduled(fixedDelay = 30_000, initialDelay = 20_000)
     public void republishFailedDocs() {
         try {
-            List<String> ids = documentReadDao.findRetryableFailedDocIds(BATCH_SIZE, MAX_RETRIES);
-
-            if (ids.isEmpty()) {
+            List<DocumentReadDao.RetryableDoc> docs =
+                    shardedRetryDao.findRetryableFailedDocs(
+                            BATCH_SIZE,
+                            MAX_RETRIES
+                    );
+            if (docs.isEmpty()) {
                 return;
             }
 
-            for (String id : ids) {
+            for (DocumentReadDao.RetryableDoc doc : docs) {
+
+                String tenantId = doc.tenantId();
+                String id = doc.docId();
+
                 try {
-                    int updated = documentWriteDao.resetFailedToPending(id);
+                    int updated =
+                            shardedRetryDao.resetFailedToPending(
+                                    tenantId,
+                                    id
+                            );
+
                     if (updated == 1) {
-                        // republish to the SAME ingest topic
-                        ingestProducer.sendRetry(id);
-                        log.info("RetryJob republished docId={}", id);
+                        ingestProducer.sendRetry(
+                                tenantId,
+                                id
+                        );
+
+                        log.info(
+                                "RetryJob republished tenantId={} docId={}",
+                                tenantId,
+                                id
+                        );
                     }
+
                 } catch (DataAccessException e) {
-                    // per-doc DB issues (rare, but safe)
-                    log.warn("RetryJob DB error for docId={}: {}", id, e.getMostSpecificCause().getMessage());
+                    log.warn(
+                            "RetryJob DB error for tenantId={} docId={}: {}",
+                            tenantId,
+                            id,
+                            e.getMostSpecificCause().getMessage()
+                    );
+
                 } catch (Exception e) {
-                    // per-doc unexpected error
-                    log.warn("RetryJob failed for docId={}: {}", id, e.getMessage());
+                    log.warn(
+                            "RetryJob failed for tenantId={} docId={}: {}",
+                            tenantId,
+                            id,
+                            e.getMessage()
+                    );
                 }
             }
-
         } catch (DataAccessException e) {
             // DB down / connection refused / pool timeout → expected in chaos test
             log.warn("RetryJob skipped (DB unavailable): {}", e.getMostSpecificCause().getMessage());

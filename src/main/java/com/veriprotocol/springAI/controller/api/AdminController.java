@@ -47,7 +47,7 @@ public class AdminController {
                 );
 
         if (updated == 1) {
-            ingestProducer.sendRetry(id);
+            ingestProducer.sendRetry(tenantId, id);
         }
 
         return documentReadDao
@@ -78,7 +78,7 @@ public class AdminController {
                     3600
             ) == 1) {
 
-                ingestProducer.sendRetry(id);
+                ingestProducer.sendRetry(tenantId, id);
                 republished++;
             }
         }

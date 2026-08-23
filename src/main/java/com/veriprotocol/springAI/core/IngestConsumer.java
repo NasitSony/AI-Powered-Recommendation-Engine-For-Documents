@@ -69,12 +69,27 @@ public class IngestConsumer {
     )
     public void consume(IngestRequestEvent event)  {
 
+        String tenantId = event.tenantId();
         String docId = event.documentId();
+
+        MDC.put("tenantId", tenantId);
         MDC.put("docId", docId);
-        var st0 = documentReadDao.findStatusById(docId).orElseThrow();
-        var createdAt = st0.createdAt();   // OffsetDateTime captured ONCE
-        var status = documentReadDao.findStatusById(docId)
-                .orElseThrow(() -> new IllegalStateException("Doc not found: " + docId));
+
+        var st0 =
+                documentService
+                        .getStatusInternal(tenantId, docId)
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Doc not found tenantId="
+                                                + tenantId
+                                                + " docId="
+                                                + docId
+                                )
+                        );
+
+        var createdAt = st0.createdAt();
+
+        var status = st0;
 
         long ageSeconds = Math.max(0, Duration.between(status.createdAt(), OffsetDateTime.now()).getSeconds());
 
@@ -83,7 +98,11 @@ public class IngestConsumer {
             
            
             // 1) Optional idempotency check via status
-            var statusOpt = documentReadDao.findStatusById(docId);
+            var statusOpt =
+                    documentService.getStatusInternal(
+                            tenantId,
+                            docId
+                    );
             if (statusOpt.isEmpty()) {
                 throw new IllegalStateException("Doc not found: " + docId);
             }
@@ -102,7 +121,7 @@ public class IngestConsumer {
             String workerId = workerIdentity.getWorkerId();
 
             long leaseStart = System.nanoTime();
-            boolean claimed = documentService.claimProcessingLease(docId, workerId);
+            boolean claimed = documentService.claimProcessingLease(tenantId, docId, workerId);
 
             long leaseMs =
                     (System.nanoTime() - leaseStart) / 1_000_000;
@@ -115,13 +134,17 @@ public class IngestConsumer {
 
          // 3) Load payload (text) from DB (Kafka carries only docId)
             long loadStart = System.nanoTime();
-            DocumentReadDao.DocPayload payload = documentReadDao.loadDocPayload(docId);
+            DocumentReadDao.DocPayload payload =
+                    documentService.loadDocPayload(
+                            tenantId,
+                            docId
+                    );
             long loadMs =
                     (System.nanoTime() - loadStart) / 1_000_000;
 
             String text = payload.text();
 
-            String tenantId = payload.tenantId();
+
 
             /*if (text.contains("DUPLICATE_INFLIGHT_TEST")) {
                 log.warn("CHAOS_DUPLICATE_INFLIGHT_WINDOW docId={} sleeping_ms=10000", docId);
@@ -174,7 +197,10 @@ public class IngestConsumer {
 
             // 5) Mark READY
             long readyStart = System.nanoTime();
-            documentService.markReadyDb(docId);
+            documentService.markReadyDb(
+                    tenantId,
+                    docId
+            );
             long readyMs =
                     (System.nanoTime() - readyStart) / 1_000_000;
          // AFTER success

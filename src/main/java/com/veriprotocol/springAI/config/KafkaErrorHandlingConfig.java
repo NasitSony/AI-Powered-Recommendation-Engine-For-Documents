@@ -79,22 +79,37 @@ public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
             if (!"DESERIALIZATION_ERROR".equals(reason)) {
 
                 try {
-                    if (record.key() != null) {
+                    if (record.key() != null
+                            && record.value() instanceof IngestRequestEvent event) {
+
+                        String tenantId = event.tenantId();
 
                         int retryCount =
                                 documentService.markRetryCycleExhausted(
+                                        tenantId,
                                         docId,
                                         rootMessage(ex)
                                 );
 
                         log.warn(
-                                "metric=retry_cycle_exhausted docId={} durableRetryCount={}",
+                                "metric=retry_cycle_exhausted tenantId={} docId={} durableRetryCount={}",
+                                tenantId,
                                 docId,
                                 retryCount
+                        );
+
+                    } else {
+                        log.warn(
+                                "Skipping document-state mutation: missing/invalid ingest event value docId={} valueType={}",
+                                docId,
+                                record.value() == null
+                                        ? "null"
+                                        : record.value().getClass().getName()
                         );
                     }
 
                 } catch (Exception e) {
+
                     log.error(
                             "Failed to persist exhausted retry cycle docId={}",
                             docId,

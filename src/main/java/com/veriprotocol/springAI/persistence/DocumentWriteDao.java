@@ -6,16 +6,22 @@ import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import com.veriprotocol.springAI.sharding.ShardJdbcRouter;
 
 @Repository
 
 
 public class DocumentWriteDao {
 
-	private final JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
+    private final ShardJdbcRouter shardJdbcRouter;
 
-    public DocumentWriteDao(JdbcTemplate jdbcTemplate) {
+    public DocumentWriteDao(
+            JdbcTemplate jdbcTemplate,
+            ShardJdbcRouter shardJdbcRouter) {
+
         this.jdbcTemplate = jdbcTemplate;
+        this.shardJdbcRouter = shardJdbcRouter;
     }
 
     private static String truncate(String s, int max) {
@@ -266,11 +272,18 @@ public class DocumentWriteDao {
         );
     }
 
-    
-    public int markRetryCycleExhausted(String docId, String errorMessage) {
+
+    public int markRetryCycleExhausted(
+            String tenantId,
+            String docId,
+            String errorMessage) {
+
+        JdbcTemplate jdbc =
+                shardJdbcRouter.jdbcFor(tenantId);
+
         String msg = truncate(errorMessage, 800);
 
-        Integer retryCount = jdbcTemplate.queryForObject("""
+        Integer retryCount = jdbc.queryForObject("""
         UPDATE documents
         SET status = 'FAILED',
             retry_count = retry_count + 1,
@@ -285,12 +298,14 @@ public class DocumentWriteDao {
             processing_started_at = NULL,
             worker_id = NULL,
             updated_at = now()
-            WHERE id = ?
-              AND status = 'PROCESSING'
-          RETURNING retry_count
+        WHERE tenant_id = ?
+          AND id = ?
+          AND status = 'PROCESSING'
+        RETURNING retry_count
         """,
                 Integer.class,
                 msg,
+                tenantId,
                 docId
         );
 

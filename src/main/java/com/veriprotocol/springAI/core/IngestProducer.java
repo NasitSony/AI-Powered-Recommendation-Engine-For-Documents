@@ -25,27 +25,27 @@ public class IngestProducer {
 
   //private final String topic = "${smartsearch.kafka.ingest-topic}"; // or from config
 
-  public void publish(String docId) {
+  public void publish(String tenantId, String docId) {
 
         IngestRequestEvent event =
-            new IngestRequestEvent(docId, System.currentTimeMillis());
+            new IngestRequestEvent(tenantId, docId, System.currentTimeMillis());
 
         kafkaTemplate.send(topic, docId, event);
   }
 
-  public void send(String docId) {
+  public void send(String tenantId, String docId) {
     kafkaTemplate.send(
         topic,
         docId,
-        new IngestRequestEvent(docId, System.currentTimeMillis())
+        new IngestRequestEvent(tenantId, docId, System.currentTimeMillis())
     );
 }
 
-public void sendRetry(String docId) {
+public void sendRetry(String tenantId, String docId) {
     kafkaTemplate.send(
         topic,
         docId,
-        new IngestRequestEvent(docId, System.currentTimeMillis())
+        new IngestRequestEvent(tenantId, docId, System.currentTimeMillis())
     );
 }
 
