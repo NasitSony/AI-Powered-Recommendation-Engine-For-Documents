@@ -78,104 +78,6 @@ public class DocumentWriteDao {
      }
 
 
-   /* public boolean claimProcessingLease(String docId, String workerId) {
-      var rows = jdbcTemplate.queryForList("""
-        INSERT INTO documents (id, status, worker_id, processing_started_at, retry_count, updated_at)
-        VALUES (?, 'PROCESSING', ?, now(), 0, now())
-        ON CONFLICT (id) DO UPDATE
-        SET status = 'PROCESSING',
-            worker_id = EXCLUDED.worker_id,
-            processing_started_at = now(),
-            updated_at = now()
-        WHERE documents.status IN ('PENDING', 'FAILED')
-        RETURNING id
-    """, docId, workerId);
-
-    return !rows.isEmpty();
-    }*/
-
-
-    public boolean claimProcessingLease(String docId, String workerId) {
-
-        var rows = jdbcTemplate.queryForList("""
-        UPDATE documents
-        SET status = 'PROCESSING',
-            worker_id = ?,
-            processing_started_at =
-                CASE
-                    WHEN status = 'PROCESSING'
-                    THEN processing_started_at
-                    ELSE now()
-                END,
-            updated_at = now()
-        WHERE id = ?
-          AND (
-                status IN ('PENDING', 'FAILED')
-                OR
-                (status = 'PROCESSING' AND worker_id = ?)
-              )
-        RETURNING id
-        """,
-                String.class,
-                workerId,
-                docId,
-                workerId
-        );
-
-        return !rows.isEmpty();
-    }
-
-    public int markReady(String docId) {
-        return jdbcTemplate.update("""
-        UPDATE documents
-        SET status = 'READY',
-            last_error = NULL,
-            next_retry_at = NULL,
-            processing_started_at = NULL,
-            worker_id = NULL,
-            updated_at = now()
-        WHERE id = ?
-          AND status = 'PROCESSING'
-        """, docId);
-    }
-
-    public String insertPendingIfAbsent(
-            String id,
-            String tenantId,
-            String requestId,
-            String text,
-            String contentHash) {
-
-        var ids = jdbcTemplate.queryForList("""
-    INSERT INTO documents (
-        id,
-        tenant_id,
-        request_id,
-        text,
-        content_hash,
-        status,
-        retry_count,
-        created_at,
-        updated_at
-    )
-    VALUES (?, ?, ?, ?, ?, 'PENDING', 0, now(), now())
-    ON CONFLICT (tenant_id, request_id) DO NOTHING
-    RETURNING id
-    """,
-                String.class,
-                id,
-                tenantId,
-                requestId,
-                text,
-                contentHash
-        );
-
-        return ids.isEmpty() ? null : ids.get(0);
-    }
-
-
-
-
 
 
     public int markStuckProcessingAsFailed(int minutes) {
@@ -192,23 +94,7 @@ public class DocumentWriteDao {
               AND processing_started_at < now() - (? || ' minutes')::interval
         """, minutes);
     }
-
-
-
-    public int resetFailedToPending(String docId) {
-        return jdbcTemplate.update("""
-            UPDATE documents
-            SET status = 'PENDING',
-              last_error = NULL,
-              next_retry_at = NULL,
-              processing_started_at = NULL,
-              worker_id = NULL,
-              updated_at = now()
-            WHERE id = ?
-            AND status = 'FAILED'
-            AND (next_retry_at IS NULL OR next_retry_at <= now())
-           """, docId);
-    }
+    
 
 
     public int forceToPending(

@@ -47,23 +47,7 @@ public class DocumentReadDao {
 
     // Internal worker lookup.
 // Safe because document IDs are globally unique and this is not user-facing.
-    public Optional<DocumentStatusDto> findStatusById(String id) {
 
-        var list = jdbcTemplate.query("""
-        SELECT id, status,
-               COALESCE(retry_count, 0) AS retry_count,
-               created_at, updated_at,
-               last_error, worker_id,
-               processing_started_at, next_retry_at
-        FROM documents
-        WHERE id = ?
-        """,
-                MAPPER,
-                id
-        );
-
-        return list.stream().findFirst();
-    }
     public Optional<DocumentStatusDto> findStatusByTenantAndId(
             String tenantId,
             String id) {
@@ -89,59 +73,17 @@ public class DocumentReadDao {
         return list.stream().findFirst();
     }
 
-    public List<RetryableDoc> findRetryableFailedDocs(
-            int limit,
-            int maxRetries) {
 
-        return jdbcTemplate.query("""
-        SELECT tenant_id, id
-        FROM documents
-        WHERE status = 'FAILED'
-          AND retry_count < ?
-          AND (next_retry_at IS NULL OR next_retry_at <= now())
-        ORDER BY updated_at ASC
-        LIMIT ?
-        """,
-                (rs, rowNum) -> new RetryableDoc(
-                        rs.getString("tenant_id"),
-                        rs.getString("id")
-                ),
-                maxRetries,
-                limit
-        );
-    }
     public record RetryableDoc(
             String tenantId,
             String docId
     ) {}
 
-    public int resetFailedToPending(String docId) {
-        return jdbcTemplate.update("""
-            UPDATE documents
-            SET status = 'PENDING',
-                last_error = NULL,
-                processing_started_at = NULL,
-                worker_id = NULL,
-                updated_at = now()
-            WHERE id = ?
-              AND status = 'FAILED'
-        """, docId);
-    }
+
 
     public record DocPayload(String id, String tenantId, String text, String contentHash) {}
 
-    public DocPayload loadDocPayload(String id) {
-        return jdbcTemplate.queryForObject("""
-            SELECT id, tenant_id, text, content_hash
-                        FROM documents
-                        WHERE id = ?
-        """, (rs, rowNum) -> new DocPayload(
-                rs.getString("id"),
-                rs.getString("tenant_id"),
-                rs.getString("text"),
-                rs.getString("content_hash")
-        ), id);
-    }
+
 
     public List<String> findOldPendingDocIdsForTenant(
             String tenantId,

@@ -219,6 +219,7 @@ public class DocumentService{
                                 );
 
                                 markPublishFailed(
+                                        tenantId,
                                         docId,
                                         safeMsg(ex)
                                 );
@@ -254,8 +255,16 @@ public class DocumentService{
 
         return existing.id();
     }
-    private void markPublishFailed(String docId, String err) {
-        docRepo.updateLastError(docId, "PUBLISH_FAILED: " + err);
+    private void markPublishFailed(
+            String tenantId,
+            String docId,
+            String err) {
+
+        shardedDocumentWriteDao.updateLastError(
+                tenantId,
+                docId,
+                "PUBLISH_FAILED: " + err
+        );
     }
 
     public List<ChunkSearchDao.ChunkHit> semanticSearchChunks(
@@ -274,19 +283,9 @@ public class DocumentService{
         );
     }
 
-    public boolean claimProcessingLease(String docId, String workerId) {
-       return documentWriteDao.claimProcessingLease(docId, workerId);
-    }
 
-    public void markReadyDb(String docId) {
-        int updated = documentWriteDao.markReady(docId);
 
-        if (updated != 1) {
-            throw new IllegalStateException(
-                    "Invalid READY transition for docId=" + docId
-            );
-        }
-    }
+
 
 
     public int markRetryCycleExhausted(

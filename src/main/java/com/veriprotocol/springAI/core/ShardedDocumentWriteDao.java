@@ -76,6 +76,27 @@ public class ShardedDocumentWriteDao {
         return rows.stream().findFirst();
     }
 
+    public int updateLastError(
+            String tenantId,
+            String docId,
+            String error) {
+
+        JdbcTemplate jdbc =
+                shardJdbcRouter.jdbcFor(tenantId);
+
+        return jdbc.update("""
+        UPDATE documents
+        SET last_error = ?,
+            updated_at = now()
+        WHERE tenant_id = ?
+          AND id = ?
+        """,
+                error,
+                tenantId,
+                docId
+        );
+    }
+
     public record ExistingDocument(
             String id,
             String contentHash) {}
