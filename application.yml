@@ -89,7 +89,7 @@ smartsearch:
       password: password
 
     shard-1:
-      url: jdbc:postgresql://localhost:5435/smartsearch
+      url: jdbc:postgresql://localhost:5438/smartsearch
       username: smartsearch
       password: password
     
