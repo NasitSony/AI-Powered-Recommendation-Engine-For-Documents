@@ -1,4 +1,52 @@
 services:
+  postgres-replica-0:
+    image: pgvector/pgvector:pg16
+    container_name: smartsearch-postgres-replica-0
+    user: postgres
+    environment:
+      PGPASSWORD: replica_password
+    ports:
+      - "5437:5432"
+    volumes:
+      - smartsearch_pgdata_replica_0:/var/lib/postgresql/data
+    depends_on:
+      - postgres-shard-0
+    command: >
+      bash -c "
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        rm -rf /var/lib/postgresql/data/* &&
+        pg_basebackup -h postgres-shard-0 -U replicator -D /var/lib/postgresql/data -Fp -Xs -P -R;
+      fi &&
+      chmod 700 /var/lib/postgresql/data &&
+      exec postgres
+      "
+    mem_limit: 768m
+    cpus: 1.0
+
+  postgres-replica-1:
+    image: pgvector/pgvector:pg16
+    container_name: smartsearch-postgres-replica-1
+    user: postgres
+    environment:
+      user: postgres
+      PGPASSWORD: replica_password
+    ports:
+      - "5438:5432"
+    volumes:
+      - smartsearch_pgdata_replica_1:/var/lib/postgresql/data
+    depends_on:
+      - postgres-shard-1
+    command: >
+      bash -c "
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        rm -rf /var/lib/postgresql/data/* &&
+        pg_basebackup -h postgres-shard-1 -U replicator -D /var/lib/postgresql/data -Fp -Xs -P -R;
+      fi &&
+      chmod 700 /var/lib/postgresql/data &&
+      exec postgres
+      "
+    mem_limit: 768m
+    cpus: 1.0
   postgres-shard-0:
     image: pgvector/pgvector:pg16
     container_name: smartsearch-postgres-shard-0
@@ -122,4 +170,6 @@ services:
 volumes:
   smartsearch_pgdata_shard_0:
   smartsearch_pgdata_shard_1:
+  smartsearch_pgdata_replica_0:
+  smartsearch_pgdata_replica_1:
   grafana-data:
