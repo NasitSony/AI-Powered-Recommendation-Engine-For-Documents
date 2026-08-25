@@ -34,8 +34,6 @@ services:
       - "5438:5432"
     volumes:
       - smartsearch_pgdata_replica_1:/var/lib/postgresql/data
-    depends_on:
-      - postgres-shard-1
     command: >
       bash -c "
       if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
@@ -64,14 +62,30 @@ services:
   postgres-shard-1:
     image: pgvector/pgvector:pg16
     container_name: smartsearch-postgres-shard-1
+    user: postgres
+
     environment:
-      POSTGRES_DB: smartsearch
-      POSTGRES_USER: smartsearch
-      POSTGRES_PASSWORD: password
+      PGPASSWORD: replica_password
+
     ports:
       - "5435:5432"
+
     volumes:
       - smartsearch_pgdata_shard_1:/var/lib/postgresql/data
+
+    depends_on:
+      - postgres-replica-1
+
+    command: >
+      bash -c "
+      if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+        rm -rf /var/lib/postgresql/data/* &&
+        pg_basebackup -h postgres-replica-1 -U replicator -D /var/lib/postgresql/data -Fp -Xs -P -R;
+      fi &&
+      chmod 700 /var/lib/postgresql/data &&
+      exec postgres
+      "
+
     mem_limit: 768m
     cpus: 1.0
   app:
