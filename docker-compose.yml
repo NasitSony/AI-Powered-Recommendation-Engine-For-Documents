@@ -27,13 +27,16 @@ services:
     image: pgvector/pgvector:pg16
     container_name: smartsearch-postgres-replica-1
     user: postgres
+
     environment:
-      user: postgres
       PGPASSWORD: replica_password
+
     ports:
       - "5438:5432"
+
     volumes:
       - smartsearch_pgdata_replica_1:/var/lib/postgresql/data
+
     command: >
       bash -c "
       if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
@@ -43,8 +46,6 @@ services:
       chmod 700 /var/lib/postgresql/data &&
       exec postgres
       "
-    mem_limit: 768m
-    cpus: 1.0
   postgres-shard-0:
     image: pgvector/pgvector:pg16
     container_name: smartsearch-postgres-shard-0

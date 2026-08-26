@@ -20,6 +20,7 @@ public class GlobalExceptionHandler {
             org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 
+    
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     @ExceptionHandler(Exception.class)
     public ErrorResponse handle(Exception e, HttpServletRequest request) {
@@ -31,6 +32,13 @@ public class GlobalExceptionHandler {
                 request.getMethod(),
                 root == null ? "null" : root.getClass().getName(),
                 e);
+
+        if (isShardUnavailable(root)) {
+            return new ErrorResponse(
+                    "SHARD_UNAVAILABLE",
+                    "No writable database node is available for this shard"
+            );
+        }
 
         if (isDbDown(root)) {
             return new ErrorResponse(
@@ -57,6 +65,18 @@ public class GlobalExceptionHandler {
                 msg.contains("Failed to obtain JDBC Connection") ||
                 msg.contains("Connection is not available")
         );
+    }
+
+    private boolean isShardUnavailable(Throwable t) {
+
+        if (t == null) {
+            return false;
+        }
+
+        String msg = t.getMessage();
+
+        return msg != null &&
+                msg.contains("No writable primary available");
     }
 
     private static Throwable rootCause(Throwable t) {
