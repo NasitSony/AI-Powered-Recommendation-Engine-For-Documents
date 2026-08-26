@@ -84,14 +84,26 @@ smartsearch:
 
   shards:
     shard-0:
-      url: jdbc:postgresql://localhost:5434/smartsearch
-      username: smartsearch
-      password: password
+      node-a:
+        url: jdbc:postgresql://localhost:5434/smartsearch?connectTimeout=2&socketTimeout=2
+        username: smartsearch
+        password: password
+
+      node-b:
+        url: jdbc:postgresql://localhost:5437/smartsearch?connectTimeout=2&socketTimeout=2
+        username: smartsearch
+        password: password
 
     shard-1:
-      url: jdbc:postgresql://localhost:5438/smartsearch
-      username: smartsearch
-      password: password
+      node-a:
+        url: jdbc:postgresql://localhost:5438/smartsearch?connectTimeout=2&socketTimeout=2
+        username: smartsearch
+        password: password
+
+      node-b:
+        url: jdbc:postgresql://localhost:5435/smartsearch?connectTimeout=2&socketTimeout=2
+        username: smartsearch
+        password: password
     
      
 
