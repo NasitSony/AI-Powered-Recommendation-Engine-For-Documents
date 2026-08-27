@@ -5,6 +5,13 @@ spring:
     url: jdbc:postgresql://localhost:5434/smartsearch?connectTimeout=2&socketTimeout=2&loginTimeout=2
     username: smartsearch
     password: password
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      connect-timeout: 2s
+      timeout: 2s
+  
   main:
     lazy-initialization: true
     hikari:
