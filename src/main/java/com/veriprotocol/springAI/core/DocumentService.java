@@ -317,41 +317,56 @@ public class DocumentService{
                         + queryHash
                         + ":"
                         + k;
-        boolean cacheAvailable = true;
 
-        // 1. Try Redis first
-        try {
-            Optional<String> cached = searchCache.get(cacheKey);
+        boolean cacheAvailable =
+                !searchCache.isCircuitOpen();
 
-            if (cached.isPresent()) {
-                log.info(
-                        "metric=search_cache_hit tenantId={} key={}",
-                        tenantId,
-                        cacheKey
-                );
-
-                return objectMapper.readValue(
-                        cached.get(),
-                        new TypeReference<List<ChunkSearchDao.ChunkHit>>() {}
-                );
-            }
+        if (!cacheAvailable) {
 
             log.info(
-                    "metric=search_cache_miss tenantId={} key={}",
+                    "metric=search_cache_bypass tenantId={} key={} reason=circuit_open",
                     tenantId,
                     cacheKey
             );
 
-        } catch (Exception e) {
+        } else {
 
-            cacheAvailable = false;
+            try {
 
-            log.warn(
-                    "Redis cache read failed tenantId={} key={} error={}",
-                    tenantId,
-                    cacheKey,
-                    e.getMessage()
-            );
+                Optional<String> cached =
+                        searchCache.get(cacheKey);
+
+                if (cached.isPresent()) {
+
+                    log.info(
+                            "metric=search_cache_hit tenantId={} key={}",
+                            tenantId,
+                            cacheKey
+                    );
+
+                    return objectMapper.readValue(
+                            cached.get(),
+                            new TypeReference<List<ChunkSearchDao.ChunkHit>>() {}
+                    );
+                }
+
+                log.info(
+                        "metric=search_cache_miss tenantId={} key={}",
+                        tenantId,
+                        cacheKey
+                );
+
+            } catch (Exception e) {
+
+                cacheAvailable = false;
+
+                log.warn(
+                        "Redis cache read failed tenantId={} key={} error={}",
+                        tenantId,
+                        cacheKey,
+                        e.getMessage()
+                );
+            }
         }
 
         // 2. Cache miss / Redis unavailable:
