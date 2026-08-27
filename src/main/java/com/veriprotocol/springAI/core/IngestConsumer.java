@@ -201,6 +201,10 @@ public class IngestConsumer {
                     tenantId,
                     docId
             );
+
+            documentService.invalidateSearchCache(
+                    tenantId
+            );
             long readyMs =
                     (System.nanoTime() - readyStart) / 1_000_000;
          // AFTER success

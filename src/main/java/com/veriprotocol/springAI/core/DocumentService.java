@@ -23,6 +23,12 @@ import com.veriprotocol.springAI.persistence.DocumentWriteDao;
 import com.veriprotocol.springAI.persistence.PgVector;
 import com.veriprotocol.springAI.sharding.ShardedDocumentWriteDao;
 
+import com.veriprotocol.springAI.cache.SearchCache;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.time.Duration;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -39,7 +45,8 @@ public class DocumentService{
     private final ShardedDocumentWriteDao shardedDocumentWriteDao;
     private final ShardedIngestDao shardedIngestDao;
 
-
+    private final SearchCache searchCache;
+    private final ObjectMapper objectMapper;
 
 
     public DocumentService(EmbeddingModel embeddingModel,
@@ -47,7 +54,9 @@ public class DocumentService{
             DocumentChunkWriteDao chunkWriteDao,
             ChunkSearchDao chunkSearchDao,
             IngestProducer ingestProducer,
-            DocumentWriteDao documentWriteDao, DocumentReadDao documentReadDao, ShardedDocumentWriteDao shardedDocumentWriteDao, ShardedIngestDao shardedIngestDao) {
+            DocumentWriteDao documentWriteDao, DocumentReadDao documentReadDao, ShardedDocumentWriteDao shardedDocumentWriteDao, ShardedIngestDao shardedIngestDao,
+                           SearchCache searchCache,
+                           ObjectMapper objectMapper) {
             this.embeddingModel = embeddingModel;
             this.docRepo = docRepo;
             this.chunkWriteDao = chunkWriteDao;
@@ -57,6 +66,8 @@ public class DocumentService{
             this.documentReadDao = documentReadDao;
             this.shardedDocumentWriteDao = shardedDocumentWriteDao;
             this.shardedIngestDao = shardedIngestDao;
+            this.searchCache = searchCache;
+            this.objectMapper = objectMapper;
     }
 
     //@Transactional
@@ -267,22 +278,121 @@ public class DocumentService{
         );
     }
 
+    public void invalidateSearchCache(String tenantId) {
+
+        try {
+
+            searchCache.invalidateTenant(tenantId);
+
+            log.info(
+                    "metric=search_cache_invalidate tenantId={}",
+                    tenantId
+            );
+
+        } catch (Exception e) {
+
+            // Redis remains an optimization.
+            log.warn(
+                    "Redis cache invalidation failed tenantId={} error={}",
+                    tenantId,
+                    e.getMessage()
+            );
+        }
+    }
+
     public List<ChunkSearchDao.ChunkHit> semanticSearchChunks(
             String tenantId,
             String query,
             int k) {
 
+        String queryHash =
+                org.apache.commons.codec.digest.DigestUtils.sha256Hex(
+                        query.trim().toLowerCase()
+                );
+
+        String cacheKey =
+                "search:"
+                        + tenantId
+                        + ":"
+                        + queryHash
+                        + ":"
+                        + k;
+        boolean cacheAvailable = true;
+
+        // 1. Try Redis first
+        try {
+            Optional<String> cached = searchCache.get(cacheKey);
+
+            if (cached.isPresent()) {
+                log.info(
+                        "metric=search_cache_hit tenantId={} key={}",
+                        tenantId,
+                        cacheKey
+                );
+
+                return objectMapper.readValue(
+                        cached.get(),
+                        new TypeReference<List<ChunkSearchDao.ChunkHit>>() {}
+                );
+            }
+
+            log.info(
+                    "metric=search_cache_miss tenantId={} key={}",
+                    tenantId,
+                    cacheKey
+            );
+
+        } catch (Exception e) {
+
+            cacheAvailable = false;
+
+            log.warn(
+                    "Redis cache read failed tenantId={} key={} error={}",
+                    tenantId,
+                    cacheKey,
+                    e.getMessage()
+            );
+        }
+
+        // 2. Cache miss / Redis unavailable:
+        // do the normal expensive path
         String qVec = PgVector.toLiteral(
                 embeddingModel.embed(query)
         );
 
-        return chunkSearchDao.searchTopK(
-                tenantId,
-                qVec,
-                k
-        );
-    }
+        List<ChunkSearchDao.ChunkHit> hits =
+                chunkSearchDao.searchTopK(
+                        tenantId,
+                        qVec,
+                        k
+                );
 
+        // 3. Best-effort cache populate
+        if (cacheAvailable) {
+
+            try {
+
+                String json =
+                        objectMapper.writeValueAsString(hits);
+
+                searchCache.put(
+                        cacheKey,
+                        json,
+                        Duration.ofSeconds(60)
+                );
+
+            } catch (Exception e) {
+
+                log.warn(
+                        "Redis cache write failed tenantId={} key={} error={}",
+                        tenantId,
+                        cacheKey,
+                        e.getMessage()
+                );
+            }
+        }
+        return hits;
+    }
 
 
 
