@@ -1,0 +1,34 @@
+Phase 9 — Multi-Tenant Filtered HNSW Experiment
+
+Table distribution:
+phase9-search-bench:       100000
+tenant-noise-A:             25000
+tenant-noise-B:             25000
+tenant-noise-C:             25000
+phase9-selective-tenant:     1000
+
+Selective tenant fraction: ~0.57%
+
+Natural PostgreSQL plan:
+- tenant_id B-tree index
+- scan 1000 tenant rows
+- exact vector distance
+- top-N sort
+- observed execution: ~9–20 ms
+
+Forced global HNSW, ef_search=40, iterative_scan=off:
+- returned rows: 0/10
+- rows removed by tenant filter: 52
+- execution time: 10.781 ms
+
+Forced global HNSW, ef_search=40, iterative_scan=strict_order:
+- returned rows: 10/10
+- rows removed by tenant filter: 1406
+- execution time: 222.939 ms
+
+Interpretation:
+For a highly selective tenant filter, default global HNSW exhausted its
+ANN candidate set before finding tenant-valid results. Iterative scanning
+restored the requested result count but required substantially more search
+work. PostgreSQL's tenant-indexed exact-search plan was more appropriate
+for this small tenant.
