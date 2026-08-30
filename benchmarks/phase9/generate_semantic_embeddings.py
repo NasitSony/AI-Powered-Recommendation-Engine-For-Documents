@@ -1,9 +1,12 @@
 import json
 import subprocess
 import random
+import sys
 
-ROWS = 1000
+ROWS = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
+START = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 SEED = 20260829
+
 
 TOPICS = [
     "distributed systems",
@@ -72,10 +75,15 @@ def vector_literal(vec):
 
 rng = random.Random(SEED)
 
-for i in range(ROWS):
+for i in range(START + ROWS):
     topic = rng.choice(TOPICS)
     concept = rng.choice(CONCEPTS)
     action = rng.choice(ACTIONS)
+
+    # Consume the exact same deterministic RNG sequence for
+    # rows before START, but don't generate their embeddings again.
+    if i < START:
+        continue
 
     text = (
         f"This document discusses {concept} in {topic}. "

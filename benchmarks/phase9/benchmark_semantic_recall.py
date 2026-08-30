@@ -1,11 +1,14 @@
+
+
 import subprocess
 import json
 import statistics
+import time
 
 DB = "postgresql://smartsearch:password@localhost:5434/smartsearch"
 
 K = 10
-EF_SEARCH = 20
+EF_SEARCH_VALUES = [10, 20, 40, 80, 160]
 
 QUERIES = [
     "How do distributed systems recover from failures?",
@@ -84,11 +87,11 @@ def exact_top_k(query_vector):
     ]
 
 
-def hnsw_top_k(query_vector):
+def hnsw_top_k(query_vector, ef_search):
     sql = f"""
     BEGIN;
     SET LOCAL enable_seqscan = off;
-    SET LOCAL hnsw.ef_search = {EF_SEARCH};
+    SET LOCAL hnsw.ef_search = {ef_search};
 
     SELECT doc_id
     FROM phase9_semantic_vectors
@@ -109,32 +112,80 @@ def hnsw_top_k(query_vector):
 def recall_at_k(exact, approx):
     return len(set(exact) & set(approx)) / K
 
+def hnsw_execution_time(query_vector, ef_search):
+    sql = f"""
+    SET enable_seqscan = off;
+    SET hnsw.ef_search = {ef_search};
+
+    EXPLAIN (ANALYZE, FORMAT JSON)
+    SELECT doc_id
+    FROM phase9_semantic_vectors
+    ORDER BY embedding <-> '{query_vector}'::vector
+    LIMIT {K};
+    """
+
+    result = subprocess.run(
+        ["psql", DB, "-X", "-q", "-A", "-t", "-c", sql],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    plan = json.loads(result.stdout)
+    return plan[0]["Execution Time"]
+
 
 def main():
-    recalls = []
+    query_vectors = [
+        (text, vector_literal(embed(text)))
+        for text in QUERIES
+    ]
 
-    for i, text in enumerate(QUERIES):
-        qvec = vector_literal(embed(text))
+    exact_results = {}
 
-        exact = exact_top_k(qvec)
-        approx = hnsw_top_k(qvec)
+    print("Building exact ground truth...")
 
-        recall = recall_at_k(exact, approx)
-        recalls.append(recall)
-
-        print(
-            f"query={i:02d} "
-            f"recall@{K}={recall:.2f} "
-            f"text=\"{text}\""
-        )
+    for i, (_, qvec) in enumerate(query_vectors):
+        exact_results[i] = exact_top_k(qvec)
 
     print()
-    print(f"queries={len(QUERIES)}")
-    print(f"ef_search={EF_SEARCH}")
-    print(f"mean_recall@{K}={statistics.mean(recalls):.4f}")
-    print(f"min_recall@{K}={min(recalls):.4f}")
-    print(f"max_recall@{K}={max(recalls):.4f}")
 
+    for ef_search in EF_SEARCH_VALUES:
+        recalls = []
+        execution_times = []
+
+        for i, (text, qvec) in enumerate(query_vectors):
+            approx = hnsw_top_k(
+                qvec,
+                ef_search
+            )
+
+            recall = recall_at_k(
+                exact_results[i],
+                approx
+            )
+
+            execution_ms = hnsw_execution_time(
+                qvec,
+                ef_search
+            )
+
+            recalls.append(recall)
+            execution_times.append(execution_ms)
+
+        times_sorted = sorted(execution_times)
+
+        p95_index = int(
+            0.95 * (len(times_sorted) - 1)
+        )
+
+        print(
+            f"ef_search={ef_search:3d} "
+            f"mean_recall@{K}={statistics.mean(recalls):.4f} "
+            f"mean_exec_ms={statistics.mean(execution_times):.3f} "
+            f"median_exec_ms={statistics.median(execution_times):.3f} "
+            f"p95_exec_ms={times_sorted[p95_index]:.3f}"
+        )
 
 if __name__ == "__main__":
     main()

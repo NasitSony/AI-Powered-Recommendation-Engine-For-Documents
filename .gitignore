@@ -45,3 +45,7 @@ build/
 ### Compiled Java ###
 *.class
 src/bin/
+
+# Phase 9 generated benchmark datasets
+benchmarks/phase9/*.csv
+benchmarks/phase9/*.tsv
